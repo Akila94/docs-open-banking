@@ -24,7 +24,7 @@ export class FrontMatterError extends Error {
 const FRONT_MATTER = /^-{3}[ \t]*\n([\s\S]*?\n)(?:\.{3}|-{3})[ \t]*\n/;
 
 /** Keys written first, in this order; any other key follows in sorted order. */
-const KEY_ORDER = ['title', 'displayed_sidebar', 'hide_table_of_contents', 'hide_markdown_actions', 'wide'];
+const KEY_ORDER = ['title', 'hide_title', 'displayed_sidebar', 'hide_table_of_contents', 'hide_markdown_actions', 'wide'];
 
 /** MkDocs template (by file name) -> Docusaurus front matter it becomes. */
 const TEMPLATE_MAP = new Map([

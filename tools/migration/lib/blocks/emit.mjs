@@ -11,11 +11,12 @@
 import {ConversionError} from '../errors.mjs';
 import {INDENT} from './lines.mjs';
 import {isSafeDirectiveLabel} from './admonitions.mjs';
+import {startsRawHtmlBlock} from './preprocess.mjs';
+import {BLOCKISH, directiveDepth, endsWithBlock, fenceLength, firstNo, lastNo, realChildren} from './spans.mjs';
 import {tabValues, tabLabel, jsxAttributeValue} from './tabs.mjs';
 import {escapeCodePipes} from './tables.mjs';
+import {mdxCommentText, MdxCommentError} from '../mdx-comment.mjs';
 
-/** Nodes that need a blank line on both sides. */
-const BLOCKISH = new Set(['admonition', 'tabs', 'html', 'comment', 'mdxcomment', 'snippet']);
 /** Prose that would change meaning, or show leftover MkDocs syntax, in CommonMark/MDX. */
 const PROSE_CHECKS = [
   [/^(?:`{3,}[^`]*|~{3,}.*)$/, 'a fence opener that Python-Markdown treats as text (unclosed or aborted fence); fix it with a fixup'],
@@ -27,109 +28,6 @@ const PROSE_CHECKS = [
 
 /** Paragraph continuation text that CommonMark would read as the start of a block. */
 const BLOCK_START = /^(?:#{1,6}(?:\s|$)|>|(?:=+|-+)\s*$|(?:\*\s*){3,}$|(?:-\s*){3,}$|(?:_\s*){3,}$)/;
-
-/**
- * Children that are emitted (the title/summary placeholders only exist for parsing).
- *
- * @param {{children?: object[]}} node Container.
- * @returns {object[]} Real children.
- */
-function realChildren(node) {
-  return (node.children ?? []).filter((child) => child.type !== 'admtitle' && child.type !== 'summary');
-}
-
-/**
- * First source line index of a node.
- *
- * @param {object} node Tree node.
- * @returns {number} Line index.
- */
-export function firstNo(node) {
-  switch (node.type) {
-    case 'item':
-    case 'admonition':
-      return node.markerLine.no;
-    case 'list':
-      return firstNo(node.children[0]);
-    case 'tabs':
-      return firstNo(node.fences[0]);
-    default:
-      return node.lines ? Math.min(...node.lines.map((line) => line.no)) : node.line.no;
-  }
-}
-
-/**
- * Last source line index of a node.
- *
- * @param {object} node Tree node.
- * @returns {number} Line index.
- */
-export function lastNo(node) {
-  switch (node.type) {
-    case 'item':
-    case 'admonition': {
-      const children = realChildren(node);
-      return Math.max(node.markerLine.end, ...children.map(lastNo));
-    }
-    case 'list':
-      return lastNo(node.children[node.children.length - 1]);
-    case 'tabs':
-      return lastNo(node.fences[node.fences.length - 1]);
-    default:
-      return node.lines ? Math.max(...node.lines.map((line) => line.end)) : node.line.end;
-  }
-}
-
-/**
- * Whether an item's emitted content ends with a block that needs a following blank line.
- *
- * @param {object} item List item.
- * @returns {boolean} True when the last descendant is a container.
- */
-function endsWithBlock(item) {
-  const children = realChildren(item);
-  const last = children[children.length - 1];
-  if (last === undefined) {
-    return false;
-  }
-  return BLOCKISH.has(last.type) || (last.type === 'list' && endsWithBlock(last.children[last.children.length - 1]));
-}
-
-/**
- * Nesting depth of directive admonitions below a node (for the outer colon count).
- *
- * @param {object} node Tree node.
- * @returns {number} 0 when no directive admonition is nested inside.
- */
-function directiveDepth(node) {
-  const children = node.type === 'tabs' ? node.fences : realChildren(node);
-  let depth = 0;
-  for (const child of children) {
-    const own = child.type === 'admonition' && child.variant === 'admonition' ? 1 : 0;
-    depth = Math.max(depth, own + directiveDepth(child));
-  }
-  return depth;
-}
-
-/**
- * Longest fence needed so no content line can close the block early.
- *
- * @param {string} char Fence character.
- * @param {number} minimum Minimum length.
- * @param {string[]} lines Code lines.
- * @returns {number} Fence length.
- */
-function fenceLength(char, minimum, lines) {
-  let length = minimum;
-  const closer = char === '`' ? /^ {0,3}(`+)[ \t]*$/ : /^ {0,3}(~+)[ \t]*$/;
-  for (const line of lines) {
-    const match = closer.exec(line);
-    if (match && match[1].length >= length) {
-      length = match[1].length + 1;
-    }
-  }
-  return length;
-}
 
 /**
  * Tree -> MDX text emitter.
@@ -151,6 +49,23 @@ export class Emitter {
     this.consumed = new Set();
     /** @type {Set<'Tabs'|'DeprecatedBanner'>} */
     this.imports = new Set();
+    /**
+     * Output line ranges (0-based, inclusive) of raw HTML blocks and MDX comments, for stage 2:
+     * raw HTML is converted to JSX there and both are left alone by the inline passes.
+     * @type {Array<{kind: 'html'|'comment', start: number, end: number, sourceLine: number}>}
+     */
+    this.regions = [];
+  }
+
+  /**
+   * Remember the output lines of a raw block or comment.
+   *
+   * @param {'html'|'comment'} kind Region kind.
+   * @param {number} start First output line index.
+   * @param {number} sourceNo 0-based source line (for error locations).
+   */
+  recordRegion(kind, start, sourceNo) {
+    this.regions.push({kind, start, end: this.out.length - 1, sourceLine: sourceNo + this.ctx.lineOffset + 1});
   }
 
   /**
@@ -224,6 +139,7 @@ export class Emitter {
           this.out.push('');
         }
         this.out.push(prefix + this.mdxComment(this.refComments.get(index), {no: index}));
+        this.recordRegion('comment', this.out.length - 1, index);
         this.consume(index);
       }
       this.out.push('');
@@ -367,10 +283,24 @@ export class Emitter {
       } else {
         const text = line.text.trimStart();
         this.checkProse(line, text);
-        this.out.push(linePrefix + this.continuationIndent(node.lines[index - 1], text, line) + text);
+        this.out.push(linePrefix + this.continuationIndent(node.lines[index - 1], text, line) + this.rawHtmlGuard(index, linePrefix, text) + text);
       }
       this.consume(line.no, line.end);
     });
+  }
+
+  /**
+   * One space before a paragraph's first line when, at column 0, it would start a raw HTML block on
+   * a re-run (Python-Markdown only treats blocks that begin with `<` as raw HTML). The paragraph's
+   * inline HTML must stay inline HTML, whose text is Markdown, on every run.
+   *
+   * @param {number} index Line index within the paragraph.
+   * @param {string} linePrefix Prefix of this line.
+   * @param {string} text Left-trimmed line text.
+   * @returns {string} '' or ' '.
+   */
+  rawHtmlGuard(index, linePrefix, text) {
+    return index === 0 && linePrefix === '' && startsRawHtmlBlock(text) ? ' ' : '';
   }
 
   /**
@@ -548,11 +478,13 @@ export class Emitter {
       this.fail(node.line, 'raw HTML block inside a container');
     }
     const lines = this.source.slice(no, end + 1).map((line) => line.text);
+    const start = this.out.length;
     if (node.type === 'comment') {
       this.out.push(...this.mdxComment(lines.join('\n'), node.line, true).split('\n'));
     } else {
       this.out.push(...lines);
     }
+    this.recordRegion(node.type === 'html' ? 'html' : 'comment', start, no);
     this.consume(no, end);
   }
 
@@ -575,12 +507,13 @@ export class Emitter {
     } else {
       inner = ` ${text} `;
     }
-    const escaped = inner.replaceAll('*/', '*\\/');
-    const opens = (escaped.match(/\{/g) ?? []).length;
-    const closes = (escaped.match(/\}/g) ?? []).length;
-    if (opens !== closes) {
-      this.fail(line, 'comment text has unbalanced braces, which MDX cannot parse');
+    try {
+      return mdxCommentText(inner);
+    } catch (error) {
+      if (error instanceof MdxCommentError) {
+        this.fail(line, error.message);
+      }
+      throw error;
     }
-    return `{/*${escaped}*/}`;
   }
 }

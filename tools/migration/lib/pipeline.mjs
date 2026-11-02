@@ -1,16 +1,23 @@
 /**
- * Per-file conversion pipeline: front matter (pass 1), block passes (2–8) and the MDX imports
- * they need. Inline passes (Task 4) plug in after `convertBlocks`.
+ * Per-file conversion pipeline: front matter (pass 1), block passes (2–8), then, when a site
+ * context is given, raw HTML -> JSX (pass 9) and the inline passes (10–14), and the MDX imports
+ * the result needs.
  */
 import path from 'node:path';
 import {splitFrontMatter, joinFrontMatter, mapTemplate, FrontMatterError} from './frontmatter.mjs';
 import {ConversionError, excerpt} from './errors.mjs';
 import {convertBlocks} from './pymd-blocks.mjs';
+import {htmlToJsx} from './html-to-jsx.mjs';
+import {pagePolicy} from './html/policy.mjs';
+import {convertInline} from './inline-mdx.mjs';
 
 /** Docs-relative location of the deprecated-banner partial after the rename. */
 export const BANNER_PARTIAL = 'includes/_deprecated-banner.md';
 
 const TABS_IMPORTS = ["import Tabs from '@theme/Tabs';", "import TabItem from '@theme/TabItem';"];
+const LINK_IMPORT = "import Link from '@docusaurus/Link';";
+/** Snippet sources become Docusaurus partials, which are not pages: they get no title. */
+const PARTIAL_DIR = 'includes/';
 const BANNER_IMPORT = /^import DeprecatedBanner from '[^']+';$/;
 
 /**
@@ -33,6 +40,9 @@ function bannerSpecifier(file) {
  */
 export function renderImports(imports, file) {
   const lines = [];
+  if (imports.has('Link')) {
+    lines.push(LINK_IMPORT);
+  }
   if (imports.has('Tabs')) {
     lines.push(...TABS_IMPORTS);
   }
@@ -57,6 +67,8 @@ function splitImports(body) {
     const line = lines[index];
     if (TABS_IMPORTS.includes(line)) {
       imports.add('Tabs');
+    } else if (line === LINK_IMPORT) {
+      imports.add('Link');
     } else if (BANNER_IMPORT.test(line)) {
       imports.add('DeprecatedBanner');
     } else {
@@ -111,12 +123,71 @@ function mapFrontMatter(data, source, file) {
 }
 
 /**
- * Convert one MkDocs Markdown file to Docusaurus MDX (block level).
+ * Convert the raw HTML blocks the block passes isolated (pass 9) and locate them and the MDX
+ * comments in the result, so the inline passes leave them alone.
+ *
+ * @param {string} body Block passes' output.
+ * @param {Array<{kind: string, start: number, end: number, sourceLine: number}>} regions Output line ranges.
+ * @param {object} options `file`, `policy`, `imports` (receives `Link`).
+ * @returns {{text: string, masks: Array<{start: number, end: number}>, rawHasH1: boolean}} Result.
+ */
+function convertRawRegions(body, regions, {file, policy, imports}) {
+  const lines = body.split('\n');
+  const out = [];
+  const maskedLines = [];
+  let cursor = 0;
+  let rawHasH1 = false;
+  for (const region of [...regions].sort((first, second) => first.start - second.start)) {
+    out.push(...lines.slice(cursor, region.start));
+    let block = lines.slice(region.start, region.end + 1);
+    if (region.kind === 'html') {
+      const html = block.join('\n');
+      rawHasH1 ||= html.includes('<h1');
+      block = htmlToJsx(html, {...policy, file, line: region.sourceLine, imports}).split('\n');
+    }
+    maskedLines.push([out.length, out.length + block.length - 1]);
+    out.push(...block);
+    cursor = region.end + 1;
+  }
+  out.push(...lines.slice(cursor));
+  const lineStarts = [];
+  let offset = 0;
+  for (const line of out) {
+    lineStarts.push(offset);
+    offset += line.length + 1;
+  }
+  const masks = maskedLines.map(([first, last]) => ({start: lineStarts[first], end: lineStarts[last] + out[last].length}));
+  return {text: out.join('\n'), masks, rawHasH1};
+}
+
+/**
+ * Shift report lines from body lines to lines of the final file.
+ *
+ * @param {object} report Inline report.
+ * @param {number} offset Lines before the body.
+ * @returns {object} Report with shifted lines.
+ */
+function shiftReport(report, offset) {
+  return Object.fromEntries(Object.entries(report).map(([key, entries]) => [
+    key, entries.map((entry) => ({...entry, line: entry.line + offset})),
+  ]));
+}
+
+/**
+ * Convert one MkDocs Markdown file to Docusaurus MDX.
+ *
+ * Without `ctx.site` only the block passes run (stage 1; used by the block-pass unit tests).
+ * With it, raw HTML becomes JSX and the inline passes run (stage 2), and `title:` is written.
  *
  * @param {string} source File content.
- * @param {{file: string, stats?: object, fixupLines?: Set<number>}} ctx `file` is the docs-relative
- *   path (errors, imports); `fixupLines` are the 1-based lines a fixup produced in `source`.
- * @returns {{text: string, imports: Set<string>}} Converted file and the components it imports.
+ * @param {object} ctx Context.
+ * @param {string} ctx.file Docs-relative path (errors, imports, link resolution).
+ * @param {object} [ctx.stats] Receives block-pass author-intent counters.
+ * @param {Set<number>} [ctx.fixupLines] 1-based lines of `source` that a fixup produced.
+ * @param {{existsFn: Function, titles: Map<string, string>, siteName: string, siteUrl: string, docsDir?: string}} [ctx.site]
+ *   Site context for stage 2.
+ * @returns {{text: string, imports: Set<string>, report: object|null}} Converted file, the
+ *   components it imports, and the stage-2 report (lines are lines of the converted file).
  * @throws {ConversionError} With `file:line`, including front matter problems.
  */
 export function convertFile(source, ctx) {
@@ -132,9 +203,49 @@ export function convertFile(source, ctx) {
     fixupLines: ctx.fixupLines,
   });
   const imports = new Set([...existing, ...converted.imports]);
+  let text = converted.text;
+  let finalFrontMatter = frontMatter;
+  let report = null;
+  if (ctx.site) {
+    const policy = pagePolicy(ctx.file, frontMatter);
+    const raw = convertRawRegions(text, converted.regions, {file: ctx.file, policy, imports});
+    const inline = convertInline(raw.text, {
+      ...ctx.site,
+      file: ctx.file,
+      masks: raw.masks,
+      policy,
+      originalBody: rest,
+      mkdocsShowsTitle: !String(data?.template ?? '').endsWith('redoc.html') && !raw.rawHasH1,
+      lineOffset: frontMatterLines,
+    });
+    text = inline.text;
+    report = inline.report;
+    finalFrontMatter = withTitle(frontMatter, ctx.file, inline);
+  }
   const importLines = renderImports(imports, ctx.file);
-  const content = importLines.length > 0
-    ? `${importLines.join('\n')}\n\n${converted.text.replace(/^\n+/, '')}`
-    : converted.text;
-  return {text: joinFrontMatter(frontMatter, content), imports};
+  const leading = /^\n*/.exec(text)[0].length;
+  const content = importLines.length > 0 ? `${importLines.join('\n')}\n\n${text.slice(leading)}` : text;
+  const output = joinFrontMatter(finalFrontMatter, content);
+  if (report !== null) {
+    const linesBeforeContent = output.slice(0, output.length - content.length).split('\n').length - 1;
+    const bodyOffset = linesBeforeContent + (importLines.length > 0 ? importLines.length + 1 - leading : 0);
+    report = shiftReport(report, bodyOffset);
+  }
+  return {text: output, imports, report};
+}
+
+/**
+ * Add `title` (and `hide_title`) to the front matter unless the page already has a title
+ * (converted pages always do; MkDocs sources never do).
+ *
+ * @param {object|null} frontMatter Mapped front matter.
+ * @param {string} file Docs-relative path.
+ * @param {{title: string, hideTitle: boolean}} inline Inline-pass result.
+ * @returns {object|null} Front matter.
+ */
+function withTitle(frontMatter, file, inline) {
+  if (file.startsWith(PARTIAL_DIR) || Object.hasOwn(frontMatter ?? {}, 'title')) {
+    return frontMatter;
+  }
+  return {...frontMatter, title: inline.title, ...(inline.hideTitle ? {hide_title: true} : {})};
 }

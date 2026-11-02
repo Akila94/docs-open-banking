@@ -28,8 +28,9 @@ import {ConversionError} from './errors.mjs';
  *   `file` is the docs-relative path used in errors; `lineOffset` is the number of lines before the
  *   body (front matter); `stats`, when given, receives author-intent counters; `fixupLines` are the
  *   1-based file lines a fixup produced (code there may deliberately differ from Python-Markdown).
- * @returns {{text: string, imports: Set<'Tabs'|'DeprecatedBanner'>}} Converted body and the
- *   components it uses.
+ * @returns {{text: string, imports: Set<'Tabs'|'DeprecatedBanner'>, regions: Array<object>}} Converted
+ *   body, the components it uses, and the output line ranges of raw HTML blocks and MDX comments
+ *   (`{kind, start, end, sourceLine}`, 0-based inclusive line indexes into `text`).
  * @throws {import('./errors.mjs').ConversionError} With `file:line` for input that cannot be
  *   classified or would convert lossily.
  */
@@ -56,7 +57,7 @@ export function convertBlocks(body, ctx) {
   }
   const emitter = new Emitter({source, refComments, forceBlankBefore: context.forceBlankBefore, ctx: context});
   const text = emitter.emitDocument(tree);
-  return {text, imports: emitter.imports};
+  return {text, imports: emitter.imports, regions: emitter.regions};
 }
 
 /**

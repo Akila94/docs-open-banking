@@ -1,0 +1,14 @@
+---
+title: "WSO2 Open Banking Accelerator Documentation"
+displayed_sidebar: null
+hide_table_of_contents: true
+hide_markdown_actions: true
+---
+
+{/*
+ * Copyright (c) 2019, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+*/}
+
+## Page not found
+
+Alternatively, you can also report an issue [here](https://github.com/wso2/docs-open-banking/issues). 

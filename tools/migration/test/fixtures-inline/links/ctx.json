@@ -1,0 +1,24 @@
+{
+  "file": "learn/sample-page.md",
+  "nav": {"learn/sample-page.md": "Sample Page"},
+  "files": [
+    "learn/sample-page.md", "learn/consent-management.md", "learn/dcr-request-policy.md", "learn/consent-core-service.md",
+    "get-started/dynamic-client-registration.md", "get-started/try-out-flow.md",
+    "assets/img/learn/flow.png"
+  ],
+  "staticFiles": [
+    "assets/attachments/ciba.jsp", "assets/attachments/api#fs#backend.war",
+    "assets/attachments/signing-certs/obsigning.pem"
+  ],
+  "report": {
+    "brokenLinks": [
+      {"line": 12, "href": "/develop/java/custom-request-object-validator#methods"},
+      {"line": 12, "href": "missing-page.md#x"},
+      {"line": 12, "href": "../../learn/dcr-request-policy.md"},
+      {"line": 22, "href": ""}
+    ],
+    "missingImages": [
+      {"line": 20, "src": "../assets/img/learn/missing.png"}
+    ]
+  }
+}

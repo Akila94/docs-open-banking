@@ -13,8 +13,19 @@
   },
   "devDependencies": {
     "@mdx-js/mdx": "3.1.1",
+    "github-slugger": "1.5.0",
+    "html-tag-names": "2.1.0",
     "js-yaml": "5.5.0",
+    "mdast-util-directive": "3.2.0",
+    "mdast-util-from-markdown": "2.1.0",
+    "mdast-util-gfm": "3.1.0",
+    "mdast-util-to-string": "4.0.0",
+    "micromark-extension-directive": "3.0.2",
+    "micromark-extension-gfm": "3.0.0",
+    "parse5": "7.3.0",
+    "property-information": "7.2.0",
     "remark-directive": "3.0.1",
-    "remark-gfm": "4.0.1"
+    "remark-gfm": "4.0.1",
+    "style-to-js": "1.1.21"
   }
 }

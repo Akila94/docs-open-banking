@@ -379,6 +379,24 @@ function isBlockLevel(tag) {
 }
 
 /**
+ * Whether a block whose first line is `text` (at column 0) would be taken as raw HTML by
+ * Python-Markdown's `HtmlBlockPreprocessor` (same test as `extractHtmlBlocks`).
+ *
+ * @param {string} text First line of the block.
+ * @returns {boolean} True when it starts a raw HTML block.
+ */
+export function startsRawHtmlBlock(text) {
+  if (!(text.startsWith('<') && text.trim().length > 1)) {
+    return false;
+  }
+  const leftTag = text.slice(1, 4) === '!--' ? '--' : getLeftTag(text).tag;
+  if (leftTag === 'hr' || leftTag === 'hr/') {
+    return false;
+  }
+  return isBlockLevel(leftTag) || leftTag === '--' || ['!', '?', '@', '%'].includes(text[1]);
+}
+
+/**
  * Split a block at a character index that must fall on a line end.
  *
  * @param {Array<object>} block Block lines.

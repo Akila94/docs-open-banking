@@ -110,3 +110,51 @@ export function navTitles(nav) {
   visit(nav);
   return titles;
 }
+
+/**
+ * Map every nav file to the label of its first (depth-first) occurrence, keeping empty labels.
+ * MkDocs keeps an empty label as the page title (`''` is not None), and Material then shows the
+ * site name; `pageTitle` needs to know about such pages.
+ *
+ * @param {NavNode[]} nav Parsed nav.
+ * @returns {Map<string, string>} Docs-relative file -> nav label (possibly empty), in nav order.
+ */
+export function navPageLabels(nav) {
+  const labels = new Map();
+  const visit = (nodes) => {
+    for (const node of nodes) {
+      if (node.file && !labels.has(node.file)) {
+        labels.set(node.file, node.label);
+      }
+      if (node.children) {
+        visit(node.children);
+      }
+    }
+  };
+  visit(nav);
+  return labels;
+}
+
+/**
+ * Read the top-level `site_name` and `site_url` of `mkdocs.yml` (the rest of the file is ignored).
+ *
+ * @param {string} mkdocsYml File content.
+ * @returns {{siteName: string, siteUrl: string}} Settings.
+ * @throws {Error} When either is missing, or `site_url` is not an absolute http(s) URL.
+ */
+export function parseSiteSettings(mkdocsYml) {
+  const scalar = (key) => {
+    const line = mkdocsYml.split(/\r?\n/).find((entry) => entry.startsWith(`${key}:`));
+    const value = line === undefined ? undefined : yaml.load(line, {schema: yaml.CORE_SCHEMA})?.[key];
+    if (typeof value !== 'string' || value.trim() === '') {
+      throw new Error(`mkdocs.yml must define a top-level ${key}`);
+    }
+    return value.trim();
+  };
+  const siteUrl = scalar('site_url');
+  const parsed = new URL(siteUrl);
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('mkdocs.yml site_url must be an http(s) URL');
+  }
+  return {siteName: scalar('site_name'), siteUrl: parsed.href.endsWith('/') ? parsed.href : `${parsed.href}/`};
+}
