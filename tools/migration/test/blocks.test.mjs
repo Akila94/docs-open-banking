@@ -4,7 +4,8 @@
  * Every directory under `test/fixtures/` holds an `input.md` (MkDocs source), a hand-written
  * `expected.md` and an optional `ctx.json` (`{"file": "<docs-relative path>"}`). For each one:
  * the converted input must equal `expected.md`, `expected.md` must compile as MDX, and
- * converting `expected.md` again must not change it (idempotency).
+ * converting `expected.md` again must not change it (idempotency). A fixture with
+ * `expected-error.txt` instead (`<file>:<line>`) must fail with a ConversionError at that location.
  */
 import {test, describe} from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,7 +19,7 @@ import remarkGfm from 'remark-gfm';
 import {convertFile} from '../lib/pipeline.mjs';
 import {convertBlocks} from '../lib/pymd-blocks.mjs';
 import {splitFrontMatter, joinFrontMatter, mapTemplate} from '../lib/frontmatter.mjs';
-import {applyFixups, FixupError} from '../lib/fixups.mjs';
+import {applyFixups, applyFixupsWithLines, FixupError} from '../lib/fixups.mjs';
 import {ConversionError} from '../lib/errors.mjs';
 
 const FIXTURES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -26,7 +27,7 @@ const FIXTURES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fi
 /**
  * Load every fixture case in a stable (sorted) order.
  *
- * @returns {Array<{name: string, input: string, expected: string, file: string}>}
+ * @returns {Array<{name: string, input: string, expected: string|null, errorLocation: string|null, file: string}>}
  */
 function loadFixtures() {
   return readdirSync(FIXTURES_DIR, {withFileTypes: true})
@@ -37,10 +38,12 @@ function loadFixtures() {
       const dir = path.join(FIXTURES_DIR, name);
       const ctxPath = path.join(dir, 'ctx.json');
       const ctx = existsSync(ctxPath) ? JSON.parse(readFileSync(ctxPath, 'utf8')) : {};
+      const read = (file) => (existsSync(path.join(dir, file)) ? readFileSync(path.join(dir, file), 'utf8') : null);
       return {
         name,
-        input: readFileSync(path.join(dir, 'input.md'), 'utf8'),
-        expected: readFileSync(path.join(dir, 'expected.md'), 'utf8'),
+        input: read('input.md'),
+        expected: read('expected.md'),
+        errorLocation: read('expected-error.txt')?.trim() ?? null,
         file: ctx.file ?? `${name}.md`,
       };
     });
@@ -56,6 +59,16 @@ async function compileMdx(source) {
   await compile(source, {remarkPlugins: [remarkGfm, remarkDirective]});
 }
 
+/**
+ * Assert that `action` throws a ConversionError whose message starts with `${location}:`.
+ *
+ * @param {() => unknown} action Code under test.
+ * @param {string} location Expected `file:line`.
+ */
+function assertFailsAt(action, location) {
+  assert.throws(action, (error) => error instanceof ConversionError && error.message.startsWith(`${location}:`));
+}
+
 const fixtures = loadFixtures();
 
 describe('block conversion fixtures', () => {
@@ -63,7 +76,13 @@ describe('block conversion fixtures', () => {
     assert.ok(fixtures.length >= 15, `expected at least 15 fixtures, found ${fixtures.length}`);
   });
 
-  for (const fixture of fixtures) {
+  for (const fixture of fixtures.filter((entry) => entry.errorLocation !== null)) {
+    test(`${fixture.name}: fails with a ConversionError at ${fixture.errorLocation}`, () => {
+      assertFailsAt(() => convertFile(fixture.input, {file: fixture.file}), fixture.errorLocation);
+    });
+  }
+
+  for (const fixture of fixtures.filter((entry) => entry.errorLocation === null)) {
     test(`${fixture.name}: converts to expected.md`, () => {
       assert.equal(convertFile(fixture.input, {file: fixture.file}).text, fixture.expected);
     });
@@ -167,6 +186,29 @@ describe('convertBlocks fails loudly', () => {
   });
 });
 
+describe('nested-list rule keeps code text exact', () => {
+  const source = readFileSync(path.join(FIXTURES_DIR, 'nested-list-code-shift', 'input.md'), 'utf8');
+
+  test('is accepted when a fixup produced the shifted code lines (compensation)', () => {
+    const {text} = convertFile(source, {file: 'page.md', fixupLines: new Set([4])});
+    assert.match(text, /^ {8}```$/m);
+  });
+
+  test('fails at the code line when no fixup compensates', () => {
+    assertFailsAt(() => convertFile(source, {file: 'page.md', fixupLines: new Set([1])}), 'page.md:4');
+  });
+});
+
+describe('front matter errors are located', () => {
+  test('an unknown template names the file and the template line', () => {
+    assertFailsAt(() => convertFile('---\ntemplate: templates/other.html\n---\nBody\n', {file: 'page.md'}), 'page.md:2');
+  });
+
+  test('malformed YAML names the file and the line js-yaml reports', () => {
+    assertFailsAt(() => convertFile('---\ntitle: ok\ntemplate: [unclosed\n---\nBody\n', {file: 'page.md'}), 'page.md:4');
+  });
+});
+
 describe('front matter', () => {
   test('splitFrontMatter tolerates trailing spaces after the fences', () => {
     const {data, body} = splitFrontMatter('--- \ntemplate: templates/redoc.html \n---\n\nBody\n');
@@ -238,6 +280,17 @@ describe('applyFixups', () => {
     assert.throws(() => applyFixups(files, [fixup({id: 'Bad Id'})]), FixupError);
     assert.throws(() => applyFixups(files, [fixup({file: '../a.md'})]), FixupError);
     assert.throws(() => applyFixups(files, [fixup({reason: ''})]), FixupError);
+  });
+
+  test('applyFixupsWithLines reports the fixed-file lines each replace produced', () => {
+    const files = new Map([['a.md', 'one\ntwo\nneedle\nfour\nother\n']]);
+    const {files: fixed, fixupLines} = applyFixupsWithLines(files, [
+      fixup({id: 'grow', find: 'two\n', replace: 'two\n2b\n'}),
+      fixup({id: 'later', find: 'other', replace: 'x\ny'}),
+      fixup({id: 'earlier', find: 'needle', replace: 'pin'}),
+    ]);
+    assert.equal(fixed.get('a.md'), 'one\ntwo\n2b\npin\nfour\nx\ny\n');
+    assert.deepEqual([...fixupLines.get('a.md')].sort((a, b) => a - b), [2, 3, 4, 6, 7]);
   });
 
   test('throws FixupError on duplicate ids', () => {

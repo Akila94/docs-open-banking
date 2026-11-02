@@ -4,7 +4,9 @@
  * to the previous item's CommonMark content column nest instead of becoming siblings).
  *
  * The methods are mixed into `BlockParser.prototype` (parser.mjs) and use its `fail`, `state`,
- * `parseBlocks`, `parseChunk` and `recordIntent`.
+ * `parseBlocks`, `parseChunk` and `recordIntent`. With `ctx.nestedListRule === false` they behave
+ * exactly like Python-Markdown (no nesting; cross-type lists merge), which convertBlocks uses to
+ * check that the rule never changes code text.
  */
 import {INDENT, TAB_LENGTH, looseDetab, withText, indentOf} from './lines.mjs';
 import {lastChild} from './tree.mjs';
@@ -99,7 +101,8 @@ export const listProcessorMethods = {
       run: (parent, blocks) => {
         const block = blocks.shift();
         const sibling = lastChild(parent);
-        if (sibling !== null && sibling.type === 'list' && indentOf(block[0].text) >= contentColumn(lastChild(sibling))) {
+        if (this.ctx.nestedListRule !== false && sibling !== null && sibling.type === 'list' &&
+          indentOf(block[0].text) >= contentColumn(lastChild(sibling))) {
           // Author intent: a blank-separated list indented to the last item's content column (2-3
           // spaces) nests under that item; Python-Markdown would continue the outer list with it.
           this.recordIntent('nestedList', block[0]);
@@ -109,7 +112,7 @@ export const listProcessorMethods = {
         const items = this.listItems(block, ordered);
         let list;
         if (sibling !== null && sibling.type === 'list') {
-          if (sibling.ordered !== ordered) {
+          if (sibling.ordered !== ordered && this.ctx.nestedListRule !== false) {
             this.fail(block[0], 'MkDocs merges this list into the preceding list of the other type; separate them with a fixup');
           }
           list = sibling;
@@ -166,13 +169,13 @@ export const listProcessorMethods = {
     for (const original of block) {
       let line = original;
       let match = LIST_CHILD.exec(line.text);
-      if (match && lastTop !== null && indentOf(line.text) >= contentColumn(lastTop)) {
+      if (this.ctx.nestedListRule !== false && match && lastTop !== null && indentOf(line.text) >= contentColumn(lastTop)) {
         this.recordIntent('nestedList', line);
         line = withText(line, INDENT + line.text.trimStart());
         match = null;
       }
       if (match) {
-        if (/^\d/.test(match[1]) !== ordered) {
+        if (/^\d/.test(match[1]) !== ordered && this.ctx.nestedListRule !== false) {
           this.fail(line, 'Python-Markdown makes this a member of the surrounding list of the other type; fix it with a fixup');
         }
         lastTop = {marker: match[1], markerLine: line, lines: [withText(line, match[3])]};

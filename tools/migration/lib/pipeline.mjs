@@ -3,7 +3,8 @@
  * they need. Inline passes (Task 4) plug in after `convertBlocks`.
  */
 import path from 'node:path';
-import {splitFrontMatter, joinFrontMatter, mapTemplate} from './frontmatter.mjs';
+import {splitFrontMatter, joinFrontMatter, mapTemplate, FrontMatterError} from './frontmatter.mjs';
+import {ConversionError, excerpt} from './errors.mjs';
 import {convertBlocks} from './pymd-blocks.mjs';
 
 /** Docs-relative location of the deprecated-banner partial after the rename. */
@@ -73,20 +74,63 @@ function splitImports(body) {
 }
 
 /**
+ * `splitFrontMatter`, with errors located as `file:line`.
+ *
+ * @param {string} source Normalised file content.
+ * @param {string} file Docs-relative path.
+ * @returns {{data: object|null, body: string}} Front matter and body.
+ * @throws {ConversionError} For malformed front matter.
+ */
+function readFrontMatter(source, file) {
+  try {
+    return splitFrontMatter(source);
+  } catch (error) {
+    if (error instanceof FrontMatterError) {
+      throw new ConversionError(file, error.line, `front matter: ${excerpt(error.message, 120)}`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * `mapTemplate`, with errors located at the `template:` line.
+ *
+ * @param {object} data Parsed front matter.
+ * @param {string} source Normalised file content (to find the `template:` line).
+ * @param {string} file Docs-relative path.
+ * @returns {object} Mapped front matter.
+ * @throws {ConversionError} For an unknown template.
+ */
+function mapFrontMatter(data, source, file) {
+  try {
+    return mapTemplate(data);
+  } catch (error) {
+    const index = source.split('\n').findIndex((line) => /^template\s*:/.test(line));
+    throw new ConversionError(file, index === -1 ? 1 : index + 1, `front matter: ${excerpt(error.message, 120)}`);
+  }
+}
+
+/**
  * Convert one MkDocs Markdown file to Docusaurus MDX (block level).
  *
  * @param {string} source File content.
- * @param {{file: string, stats?: object}} ctx `file` is the docs-relative path (errors, imports).
+ * @param {{file: string, stats?: object, fixupLines?: Set<number>}} ctx `file` is the docs-relative
+ *   path (errors, imports); `fixupLines` are the 1-based lines a fixup produced in `source`.
  * @returns {{text: string, imports: Set<string>}} Converted file and the components it imports.
- * @throws {Error} ConversionError (`file:line`) or a front matter error.
+ * @throws {ConversionError} With `file:line`, including front matter problems.
  */
 export function convertFile(source, ctx) {
   const normalized = source.replace(/\r\n?/g, '\n');
-  const {data, body} = splitFrontMatter(normalized);
-  const frontMatter = data === null ? null : mapTemplate(data);
+  const {data, body} = readFrontMatter(normalized, ctx.file);
+  const frontMatter = data === null ? null : mapFrontMatter(data, normalized, ctx.file);
   const frontMatterLines = normalized.slice(0, normalized.length - body.length).split('\n').length - 1;
   const {imports: existing, rest, removedLines} = splitImports(body);
-  const converted = convertBlocks(rest, {file: ctx.file, lineOffset: frontMatterLines + removedLines, stats: ctx.stats});
+  const converted = convertBlocks(rest, {
+    file: ctx.file,
+    lineOffset: frontMatterLines + removedLines,
+    stats: ctx.stats,
+    fixupLines: ctx.fixupLines,
+  });
   const imports = new Set([...existing, ...converted.imports]);
   const importLines = renderImports(imports, ctx.file);
   const content = importLines.length > 0

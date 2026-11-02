@@ -292,5 +292,19 @@
     "find": "                  ```",
     "replace": "                 ```",
     "reason": "Line 188: the `toml` fence opens at 17 spaces but closes at 18, so superfences drops it and MkDocs shows the fence and config lines as text. Intent: a code block."
+  },
+  {
+    "id": "ciba-set-up-flow-nested-code-indent-1",
+    "file": "learn/ciba-set-up-flow.md",
+    "find": "             `generateWebAuthLink()` - Can be used to generate customised auth webLink URLs.\n             `getAuthenticatedUsers()` - Can be used to customise identifying the users based on the login_hint parameter.",
+    "replace": "                 `generateWebAuthLink()` - Can be used to generate customised auth webLink URLs.\n                 `getAuthenticatedUsers()` - Can be used to customise identifying the users based on the login_hint parameter.",
+    "reason": "Lines 286-287: after the nested-list rule nests line 284 one level deeper, the over-indented method lines would lose 4 leading spaces of code text; +4 keeps the code text identical to MkDocs."
+  },
+  {
+    "id": "ciba-set-up-flow-nested-code-indent-2",
+    "file": "learn/ciba-set-up-flow.md",
+    "find": "             `setHeaders()` - Can be used to set custom headers in SMS service request.\n             `getPayload()` - Can use to send custom payload via an SMS or to customise the SMS service request.",
+    "replace": "                 `setHeaders()` - Can be used to set custom headers in SMS service request.\n                 `getPayload()` - Can use to send custom payload via an SMS or to customise the SMS service request.",
+    "reason": "Lines 295-296: after the nested-list rule nests line 293 one level deeper, the over-indented method lines would lose 4 leading spaces of code text; +4 keeps the code text identical to MkDocs."
   }
 ]

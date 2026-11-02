@@ -89,10 +89,26 @@ function validateFixup(fixup, seenIds) {
  *   or its `find` does not occur exactly once.
  */
 export function applyFixups(files, fixups) {
+  return applyFixupsWithLines(files, fixups).files;
+}
+
+/**
+ * Apply fixups and report which lines of each fixed file came from a fixup's `replace` text.
+ * The converter uses this to accept code whose indentation a fixup deliberately compensates.
+ *
+ * @param {Map<string, string>} files Docs-relative path -> file content. Not mutated.
+ * @param {Array<{id: string, file: string, find: string, replace: string, reason: string}>} fixups Entries, applied in order.
+ * @returns {{files: Map<string, string>, fixupLines: Map<string, Set<number>>}} Fixed files and, per
+ *   fixed file, the 1-based line numbers (in the fixed content) produced by a fixup.
+ * @throws {FixupError} As {@link applyFixups}.
+ */
+export function applyFixupsWithLines(files, fixups) {
   if (!Array.isArray(fixups)) {
     throw new FixupError('<unknown>', 'fixups must be an array');
   }
   const result = new Map(files);
+  /** @type {Map<string, Array<{start: number, end: number}>>} character ranges in the current content */
+  const ranges = new Map();
   const seenIds = new Set();
   for (const fixup of fixups) {
     validateFixup(fixup, seenIds);
@@ -104,7 +120,26 @@ export function applyFixups(files, fixups) {
     if (matches !== 1) {
       throw new FixupError(fixup.id, `\`find\` must match exactly once in ${fixup.file}, found ${matches}`);
     }
-    result.set(fixup.file, content.replace(fixup.find, () => fixup.replace));
+    const start = content.indexOf(fixup.find);
+    const delta = fixup.replace.length - fixup.find.length;
+    const fileRanges = (ranges.get(fixup.file) ?? [])
+      .map((range) => (range.start >= start + fixup.find.length ? {start: range.start + delta, end: range.end + delta} : range));
+    fileRanges.push({start, end: start + fixup.replace.length});
+    ranges.set(fixup.file, fileRanges);
+    result.set(fixup.file, content.slice(0, start) + fixup.replace + content.slice(start + fixup.find.length));
   }
-  return result;
+  const fixupLines = new Map();
+  for (const [file, fileRanges] of ranges) {
+    const content = result.get(file);
+    const lines = new Set();
+    for (const {start, end} of fileRanges) {
+      const first = content.slice(0, start).split('\n').length;
+      const last = content.slice(0, Math.max(start, end - 1)).split('\n').length;
+      for (let line = first; line <= last; line += 1) {
+        lines.add(line);
+      }
+    }
+    fixupLines.set(file, lines);
+  }
+  return {files: result, fixupLines};
 }

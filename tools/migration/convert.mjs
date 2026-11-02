@@ -18,7 +18,7 @@ import path from 'node:path';
 import {parseArgs} from 'node:util';
 import {fileURLToPath} from 'node:url';
 
-import {applyFixups} from './lib/fixups.mjs';
+import {applyFixupsWithLines} from './lib/fixups.mjs';
 import {parseNav, navTitles} from './lib/nav-sidebars.mjs';
 import {convertFile} from './lib/pipeline.mjs';
 
@@ -94,14 +94,14 @@ export function main(argv) {
   const titles = navTitles(nav);
   const files = new Map(listMarkdownFiles(docsRoot).map((file) => [file, readFileSync(insideDocs(docsRoot, file), 'utf8')]));
   const fixups = values.fixups ? JSON.parse(readFileSync(values.fixups, 'utf8')) : [];
-  const fixed = applyFixups(files, fixups);
+  const {files: fixed, fixupLines} = applyFixupsWithLines(files, fixups);
   console.error(`convert: ${files.size} files, ${fixups.length} fixups applied`);
 
   const stats = {nestedList: 0, listNotParagraph: 0, sites: []};
   const changed = [];
   const imports = {};
   for (const [file, content] of fixed) {
-    const {text, imports: used} = convertFile(content, {file, stats});
+    const {text, imports: used} = convertFile(content, {file, stats, fixupLines: fixupLines.get(file)});
     if (used.size > 0) {
       imports[file] = [...used].sort();
     }

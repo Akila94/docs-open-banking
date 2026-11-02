@@ -7,6 +7,19 @@
  */
 import * as yaml from 'js-yaml';
 
+/** A front matter problem, with the 1-based file line it was found on. */
+export class FrontMatterError extends Error {
+  /**
+   * @param {string} message What is wrong.
+   * @param {number} line 1-based line in the file.
+   */
+  constructor(message, line) {
+    super(message);
+    this.name = 'FrontMatterError';
+    this.line = line;
+  }
+}
+
 /** Same pattern MkDocs 1.1 (`mkdocs.utils.meta`) uses to find the YAML block. */
 const FRONT_MATTER = /^-{3}[ \t]*\n([\s\S]*?\n)(?:\.{3}|-{3})[ \t]*\n/;
 
@@ -24,16 +37,22 @@ const TEMPLATE_MAP = new Map([
  *
  * @param {string} src Whole file content (LF line endings).
  * @returns {{data: object|null, body: string}} Parsed front matter (null when absent) and the rest.
- * @throws {Error} When the front matter is not a YAML mapping.
+ * @throws {FrontMatterError} When the YAML is malformed or not a mapping (with the file line).
  */
 export function splitFrontMatter(src) {
   const match = FRONT_MATTER.exec(src);
   if (!match) {
     return {data: null, body: src};
   }
-  const data = yaml.load(match[1], {schema: yaml.JSON_SCHEMA}) ?? {};
+  let data;
+  try {
+    data = yaml.load(match[1], {schema: yaml.JSON_SCHEMA}) ?? {};
+  } catch (error) {
+    // js-yaml marks are 0-based within the YAML text, which starts on line 2 of the file.
+    throw new FrontMatterError(`invalid YAML: ${error.reason ?? 'parse error'}`, (error.mark?.line ?? -1) + 2);
+  }
   if (typeof data !== 'object' || Array.isArray(data)) {
-    throw new Error('front matter must be a YAML mapping');
+    throw new FrontMatterError('front matter must be a YAML mapping', 1);
   }
   return {data, body: src.slice(match[0].length)};
 }

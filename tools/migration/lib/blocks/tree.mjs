@@ -94,3 +94,57 @@ export function normalizeTree(node, ctx) {
     }
   }
 }
+
+/**
+ * Normalise code text the way the verification harness compares it: right-trimmed lines,
+ * no leading or trailing blank lines.
+ *
+ * @param {string[]} lines Code lines.
+ * @returns {string} Normalised text.
+ */
+function normalizeCode(lines) {
+  const trimmed = lines.map((line) => line.trimEnd());
+  while (trimmed.length > 0 && trimmed[0] === '') {
+    trimmed.shift();
+  }
+  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === '') {
+    trimmed.pop();
+  }
+  return trimmed.join('\n');
+}
+
+/**
+ * Every code block of a (normalised or raw) tree, keyed by its first source line: indented code
+ * as Python-Markdown's text, fences as their dedented content. Fence placeholders still inside
+ * paragraphs are included, so the raw tree of a second parse can be compared too.
+ *
+ * @param {{children: object[]}} root Tree root.
+ * @returns {Map<number, {text: string, lines: number[]}>} Source line -> code text and the source
+ *   lines the block spans.
+ */
+export function collectCodeTexts(root) {
+  const codes = new Map();
+  const addFence = (line) => {
+    const span = [];
+    for (let no = line.no; no <= line.end; no += 1) {
+      span.push(no);
+    }
+    codes.set(line.no, {text: normalizeCode(line.ref.codeLines), lines: span});
+  };
+  const visit = (node) => {
+    if (node.type === 'code') {
+      codes.set(node.lines[0].no, {text: normalizeCode(node.text.split('\n')), lines: node.lines.map((line) => line.no)});
+    } else if (node.type === 'fence') {
+      addFence(node.line);
+    } else if (node.type === 'tabs') {
+      node.fences.forEach((fence) => addFence(fence.line));
+    } else if (node.type === 'para') {
+      node.lines.filter((line) => line.ref?.kind === 'fence').forEach(addFence);
+    }
+    for (const child of node.children ?? []) {
+      visit(child);
+    }
+  };
+  visit(root);
+  return codes;
+}
