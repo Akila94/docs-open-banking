@@ -1,0 +1,296 @@
+[
+  {
+    "id": "configuring-accelerator-note-body-1",
+    "file": "install-and-setup/configuring-accelerator.md",
+    "find": "| `password` | string | `wso2123` | The password of the super admin user. |\n\n!!!Note\nWe recommend encrypting the plain-text secrets using the secure vault implementation ",
+    "replace": "| `password` | string | `wso2123` | The password of the super admin user. |\n\n!!!Note\n    We recommend encrypting the plain-text secrets using the secure vault implementation ",
+    "reason": "Line 29: `!!!Note` is followed by an unindented line, so MkDocs renders an empty Note box and 'We recommend encrypting…' as a plain paragraph after it. Intent: that sentence is the note's body."
+  },
+  {
+    "id": "configuring-accelerator-note-body-2",
+    "file": "install-and-setup/configuring-accelerator.md",
+    "find": "| `create_admin_account` | boolean | `TRUE` | Creates a new user with the given super admin details. |\n\n!!!Note\nWe recommend encrypting the plain-text secrets using the secure vault implementation ",
+    "replace": "| `create_admin_account` | boolean | `TRUE` | Creates a new user with the given super admin details. |\n\n!!!Note\n    We recommend encrypting the plain-text secrets using the secure vault implementation ",
+    "reason": "Line 76: `!!!Note` is followed by an unindented line, so MkDocs renders an empty Note box and 'We recommend encrypting…' as a plain paragraph after it. Intent: that sentence is the note's body."
+  },
+  {
+    "id": "dgcptm-unclosed-windows-tab",
+    "file": "install-and-setup/distributed-gateway-control-plane-traffic-manager.md",
+    "find": "    ./configure.ps1",
+    "replace": "    ./configure.ps1\n    ```",
+    "reason": "Line 136: the `powershell tab='On Windows'` fence is never closed, so superfences drops it and MkDocs shows the fence line and `./configure.ps1` as text after a two-tab group. Intent: a third tab, closed after `./configure.ps1`."
+  },
+  {
+    "id": "dgcptm-unclosed-hostname-fence",
+    "file": "install-and-setup/distributed-gateway-control-plane-traffic-manager.md",
+    "find": "    hostname = \"<APIM_GW_HOST>\"",
+    "replace": "    hostname = \"<APIM_GW_HOST>\"\n    ```",
+    "reason": "Line 145: the `toml` fence under step 2 is never closed, so MkDocs shows `[server]`/`hostname` as text and pairs the following fences wrongly. Intent: a code block closed after the hostname line."
+  },
+  {
+    "id": "dgcptm-event-hub-note",
+    "file": "install-and-setup/distributed-gateway-control-plane-traffic-manager.md",
+    "find": "    !!!note Event hub configuration is used to retrieve Gateway artifacts. Using event_listening_endpoints, the Gateway will create a JMS connection with the event hub that is then used to subscribe for API/Application/Subscription and Key Manager operations-related events. The service_url points to the internal API that resides in the event hub that is used to pull artifacts and information from the database.",
+    "replace": "    !!! note\n        Event hub configuration is used to retrieve Gateway artifacts. Using event_listening_endpoints, the Gateway will create a JMS connection with the event hub that is then used to subscribe for API/Application/Subscription and Key Manager operations-related events. The service_url points to the internal API that resides in the event hub that is used to pull artifacts and information from the database.",
+    "reason": "Line 228: `!!!note Event hub configuration is used…` is not a valid marker (text on the marker line), so MkDocs renders it as literal text starting with `!!!note`. Intent: a note whose body is that sentence."
+  },
+  {
+    "id": "dgcptm-info-body-indent",
+    "file": "install-and-setup/distributed-gateway-control-plane-traffic-manager.md",
+    "find": "   !!! info\n   This configuration is used for deploying APIs to the Gateway and for connecting the Developer Portal component\n   to the Gateway if the Gateway is shared across tenants. If the Gateway is not used by multiple tenants, you can\n   create a Gateway Environment using the Admin Portal. Note that in the above configurations, service_url points\n   to the 9443 port of the Gateway node, while http_endpoint and https_endpoint points to the http and https nio\n   ports (8280 and 8243).",
+    "replace": "    !!! info\n        This configuration is used for deploying APIs to the Gateway and for connecting the Developer Portal component\n        to the Gateway if the Gateway is shared across tenants. If the Gateway is not used by multiple tenants, you can\n        create a Gateway Environment using the Admin Portal. Note that in the above configurations, service_url points\n        to the 9443 port of the Gateway node, while http_endpoint and https_endpoint points to the http and https nio\n        ports (8280 and 8243).",
+    "reason": "Lines 606-611: `!!! info` and its body are indented 3 spaces, so MkDocs renders the marker as literal text in a paragraph. Intent: an info box inside step 8."
+  },
+  {
+    "id": "dgcptm-tip-after-fence",
+    "file": "install-and-setup/distributed-gateway-control-plane-traffic-manager.md",
+    "find": "    ```\n!!!tip",
+    "replace": "    ```\n\n!!!tip",
+    "reason": "Line 341: `!!!tip` directly follows the closing fence of step 4's code block, so Python-Markdown drops that `[apim.jwt]`… code block. Intent: keep the code block, then the tip."
+  },
+  {
+    "id": "dgcp-unclosed-windows-tab",
+    "file": "install-and-setup/distributed-gateway-control-plane.md",
+    "find": "    ./configure.ps1",
+    "replace": "    ./configure.ps1\n    ```",
+    "reason": "Line 134: the `powershell tab='On Windows'` fence is never closed, so superfences drops it and MkDocs shows the fence line and `./configure.ps1` as text after a two-tab group. Intent: a third tab, closed after `./configure.ps1`."
+  },
+  {
+    "id": "dgcp-tip-after-fence",
+    "file": "install-and-setup/distributed-gateway-control-plane.md",
+    "find": "    ```\n!!!tip",
+    "replace": "    ```\n\n!!!tip",
+    "reason": "Line 342: `!!!tip` directly follows the closing fence of step 4's code block, so Python-Markdown drops that `[apim.jwt]`… code block. Intent: keep the code block, then the tip."
+  },
+  {
+    "id": "setting-up-databases-unclosed-postgresql-tab",
+    "file": "install-and-setup/setting-up-databases.md",
+    "find": "         ALTER TABLE AM_APPLICATION_REGISTRATION ALTER column VALUE type VARCHAR(7500);",
+    "replace": "         ALTER TABLE AM_APPLICATION_REGISTRATION ALTER column VALUE type VARCHAR(7500);\n         ```",
+    "reason": "Line 351: the `sql tab='PostgreSQL'` fence is never closed, so MkDocs shows the fence line and the ALTER statement as text after the Oracle tab. Intent: a third tab, closed after the ALTER statement."
+  },
+  {
+    "id": "setting-up-servers-keystore-tab-indent",
+    "file": "install-and-setup/setting-up-servers.md",
+    "find": "    ```server tab='wso2is-7.1.0'",
+    "replace": "      ```server tab='wso2is-7.1.0'",
+    "reason": "Line 190: the first `server tab='wso2is-7.1.0'` fence opens at 4 spaces but closes at 6 (line 199), so superfences drops it and MkDocs shows its text, then pairs the later fences wrongly. Intent: three tabs at 6 spaces inside the warning, like the other two."
+  },
+  {
+    "id": "setting-up-servers-with-is-info-bullet-1",
+    "file": "install-and-setup/setting-up-servers-with-is.md",
+    "find": "      - !!! info\n              This documentation will refer to the product home as `<IS_HOME>`.",
+    "replace": "    !!! info\n        This documentation will refer to the product home as `<IS_HOME>`.",
+    "reason": "Lines 35-36: `- !!! info` with a 14-space body makes MkDocs render a bullet whose info box has the body nested inside its title bar. Intent: an info box in step 3 with that sentence as its body (the stray bullet marker is removed)."
+  },
+  {
+    "id": "setting-up-servers-with-is-step-4-table-and-info",
+    "file": "install-and-setup/setting-up-servers-with-is.md",
+    "find": "   | File                             | Directory location to place the Accelerator |\n   |----------------------------------|---------------------------------------------|\n   | wso2-fsiam-accelerator-4.0.0.zip | `<IS_HOME>`                                 |\n\n   - !!! info\n           This documentation will refer to the above-extracted directory of the accelerator as `<FS_IS_ACCELERATOR_HOME>`",
+    "replace": "    | File                             | Directory location to place the Accelerator |\n    |----------------------------------|---------------------------------------------|\n    | wso2-fsiam-accelerator-4.0.0.zip | `<IS_HOME>`                                 |\n\n    !!! info\n        This documentation will refer to the above-extracted directory of the accelerator as `<FS_IS_ACCELERATOR_HOME>`",
+    "reason": "Lines 40-45: the step 4 table is indented 3 spaces (Python-Markdown ends the list before it) and `- !!! info` with an 11-space body follows, so MkDocs renders the table outside the list and a bullet whose info box has the body nested in its title bar. Intent: the table and an info box (with that sentence as its body) inside step 4; the stray bullet marker is removed."
+  },
+  {
+    "id": "setting-up-servers-with-is-note-body-indent",
+    "file": "install-and-setup/setting-up-servers-with-is.md",
+    "find": "         If you are using the default keystore available in the product, update them by removing any unnecessary or expired\n         Root CA Certificates.",
+    "replace": "    If you are using the default keystore available in the product, update them by removing any unnecessary or expired\n    Root CA Certificates.",
+    "reason": "Lines 150-151: the note body is indented 9 spaces, so Python-Markdown nests it inside the admonition title (`<p class=\"admonition-title\">Note<p>…`). Intent: a normal note body."
+  },
+  {
+    "id": "scope-based-note-body-indent",
+    "file": "tryout-flows/accelerator-with-is/try-out-flow-scope-based-consent.md",
+    "find": "   In a real-life open banking environment, the API consumer applications can retrieve details of accounts for which\n   the bank customer has granted them consent.",
+    "replace": "    In a real-life open banking environment, the API consumer applications can retrieve details of accounts for which\n    the bank customer has granted them consent.",
+    "reason": "Lines 140-141: the note body is indented 3 spaces, so MkDocs renders an empty Note box followed by the text as a paragraph. Intent: the text is the note's body."
+  },
+  {
+    "id": "scope-based-details-body-indent",
+    "file": "tryout-flows/accelerator-with-is/try-out-flow-scope-based-consent.md",
+    "find": "   - Given below is a sample payload in the JWT format:",
+    "replace": "    - Given below is a sample payload in the JWT format:",
+    "reason": "Line 157: the `??? tip` body starts at 3 spaces, so MkDocs renders an empty collapsible followed by the bullet and payload outside it. Intent: the bullet and the payload are the collapsible's body."
+  },
+  {
+    "id": "scope-based-request-object-details",
+    "file": "tryout-flows/accelerator-with-is/try-out-flow-scope-based-consent.md",
+    "find": "      - ??? tip \"Click here to see a sample request object...\"\n            - Given below is a sample request object in the JWT format:",
+    "replace": "    ??? tip \"Click here to see a sample request object...\"\n        - Given below is a sample request object in the JWT format:",
+    "reason": "Lines 37-38: `- ??? tip` puts the collapsible inside a bullet and its 12-space body renders as a code block, and the `Format` tab is broken. Intent: a collapsible in step 1 holding the intro bullet and the Sample/Format tabs (the stray bullet marker is removed)."
+  },
+  {
+    "id": "scope-based-request-object-tabs",
+    "file": "tryout-flows/accelerator-with-is/try-out-flow-scope-based-consent.md",
+    "find": "            ``` jwt tab='Sample'\n                 eyJraWQiOiJzQ2VrTmdTV0lhdVEzNGtsUmhER3Fmd3BqYzQiLCJ0eXAiOiJKV1QiLCJhbGciOiJQUzI1NiJ9.eyJhdWQiOiJodHRwczovL2xvY2FsaG9zdDo5NDQ2L29hdXRoMi90b2tlbiIsIm5iZiI6MTc1Njc4Mjk2NSwiY3JpdCI6e30sInNjb3BlIjoib3BlbmlkIGFjY291bnRzIiwiY2xhaW1zIjp7ImlkX3Rva2VuIjp7ImFjciI6eyJ2YWx1ZXMiOlsidXJuOm9wZW5iYW5raW5nOnBzZDI6Y2EiLCJ1cm46b3BlbmJhbmtpbmc6cHNkMjpzY2EiXSwiZXNzZW50aWFsIjp0cnVlfX19LCJpc3MiOiJpZEh2SGNVNUdIbTd3ZnNEMDZwd2xQcWZWNVFhIiwicmVzcG9uc2VfdHlwZSI6ImNvZGUgaWRfdG9rZW4iLCJyZWRpcmVjdF91cmkiOiJodHRwczovL3d3dy5nb29nbGUuY29tL3JlZGlyZWN0cy9yZWRpcmVjdDEiLCJzdGF0ZSI6IjhkYTZmNmVmLThjZjktNDY1MS1iNTdmLTljNGNjNzlkZGE4OCIsImV4cCI6MTc1Njc4NjQ0NSwibm9uY2UiOiIzZThlMzllZC01Yzc0LTQ2ZmQtYjYyOS01YzAxYTMyMzViZWMiLCJjbGllbnRfaWQiOiJpZEh2SGNVNUdIbTd3ZnNEMDZwd2xQcWZWNVFhIn0.hqt_HhsYVcqACFudUq8Z58EnLaMyMTMvdroGBWyx7zNELU-nSx5-SYj6qUYOzHyAWsgwGkVO-ZMZcAU_xxaU1MJai1JGpBRDOqFbcmfondsxHqQYQuSm0AEK2JYHVQjlGsg8ynIrC__QCzOKl8KflhiTPF7hu4l5pm15QDgNR2dVz4XBcKNc8q2pqYotu3K65eJDRdv-En9G3yTpyE56u-9aTupYTKCn4nUYhH5DF6zsz6RNsq_W8LxWyr53SNJxkKZyAZVUmCuZnfEoYERtngh90S4QuLOdYrnG76Yh9VhbrU7D6bFI4tv-Uerg4RzdkxkURmLutVdppfIYQ14TOg\n            ```\n                 \n            ``` tab='Format'\n                 {\n                   \"kid\": \"<The KID value of the signing jwk set>\",\n                   \"alg\": \"<SUPPORTED_ALGORITHM>\",\n                   \"typ\": \"JWT\"\n                 }\n                 {\n                   \"max_age\": 86400,\n                   \"aud\": \"<This is the audience that the ID token is intended for. Example, https://<IS_HOST>:9446/oauth2/token>\",\n                   \"scope\": \"accounts openid\",\n                   \"iss\": \"<CLIENT_ID>\",\n                   \"claims\": {\n                     \"id_token\": {\n                       \"acr\": {\n                         \"values\": [\n                           \"urn:openbanking:psd2:sca\",\n                           \"urn:openbanking:psd2:ca\"\n                         ],\n                         \"essential\": true\n                       }\n                     }\n                   },\n                   \"response_type\": \"code id_token\",  \n                   \"redirect_uri\": \"<CLIENT_APPLICATION_REDIRECT_URI>\",\n                   \"state\": \"YWlzcDozMTQ2\",\n                   \"exp\": <The expiration time of the request object in Epoch format>,\n                   \"nonce\": \"<PREVENTS_REPLAY_ATTACKS>\",\n                   \"client_id\": \"<CLIENT_ID>\"\n                 }\n            ```",
+    "replace": "        ``` jwt tab='Sample'\n             eyJraWQiOiJzQ2VrTmdTV0lhdVEzNGtsUmhER3Fmd3BqYzQiLCJ0eXAiOiJKV1QiLCJhbGciOiJQUzI1NiJ9.eyJhdWQiOiJodHRwczovL2xvY2FsaG9zdDo5NDQ2L29hdXRoMi90b2tlbiIsIm5iZiI6MTc1Njc4Mjk2NSwiY3JpdCI6e30sInNjb3BlIjoib3BlbmlkIGFjY291bnRzIiwiY2xhaW1zIjp7ImlkX3Rva2VuIjp7ImFjciI6eyJ2YWx1ZXMiOlsidXJuOm9wZW5iYW5raW5nOnBzZDI6Y2EiLCJ1cm46b3BlbmJhbmtpbmc6cHNkMjpzY2EiXSwiZXNzZW50aWFsIjp0cnVlfX19LCJpc3MiOiJpZEh2SGNVNUdIbTd3ZnNEMDZwd2xQcWZWNVFhIiwicmVzcG9uc2VfdHlwZSI6ImNvZGUgaWRfdG9rZW4iLCJyZWRpcmVjdF91cmkiOiJodHRwczovL3d3dy5nb29nbGUuY29tL3JlZGlyZWN0cy9yZWRpcmVjdDEiLCJzdGF0ZSI6IjhkYTZmNmVmLThjZjktNDY1MS1iNTdmLTljNGNjNzlkZGE4OCIsImV4cCI6MTc1Njc4NjQ0NSwibm9uY2UiOiIzZThlMzllZC01Yzc0LTQ2ZmQtYjYyOS01YzAxYTMyMzViZWMiLCJjbGllbnRfaWQiOiJpZEh2SGNVNUdIbTd3ZnNEMDZwd2xQcWZWNVFhIn0.hqt_HhsYVcqACFudUq8Z58EnLaMyMTMvdroGBWyx7zNELU-nSx5-SYj6qUYOzHyAWsgwGkVO-ZMZcAU_xxaU1MJai1JGpBRDOqFbcmfondsxHqQYQuSm0AEK2JYHVQjlGsg8ynIrC__QCzOKl8KflhiTPF7hu4l5pm15QDgNR2dVz4XBcKNc8q2pqYotu3K65eJDRdv-En9G3yTpyE56u-9aTupYTKCn4nUYhH5DF6zsz6RNsq_W8LxWyr53SNJxkKZyAZVUmCuZnfEoYERtngh90S4QuLOdYrnG76Yh9VhbrU7D6bFI4tv-Uerg4RzdkxkURmLutVdppfIYQ14TOg\n        ```\n                 \n        ``` tab='Format'\n             {\n               \"kid\": \"<The KID value of the signing jwk set>\",\n               \"alg\": \"<SUPPORTED_ALGORITHM>\",\n               \"typ\": \"JWT\"\n             }\n             {\n               \"max_age\": 86400,\n               \"aud\": \"<This is the audience that the ID token is intended for. Example, https://<IS_HOST>:9446/oauth2/token>\",\n               \"scope\": \"accounts openid\",\n               \"iss\": \"<CLIENT_ID>\",\n               \"claims\": {\n                 \"id_token\": {\n                   \"acr\": {\n                     \"values\": [\n                       \"urn:openbanking:psd2:sca\",\n                       \"urn:openbanking:psd2:ca\"\n                     ],\n                     \"essential\": true\n                   }\n                 }\n               },\n               \"response_type\": \"code id_token\",  \n               \"redirect_uri\": \"<CLIENT_APPLICATION_REDIRECT_URI>\",\n               \"state\": \"YWlzcDozMTQ2\",\n               \"exp\": <The expiration time of the request object in Epoch format>,\n               \"nonce\": \"<PREVENTS_REPLAY_ATTACKS>\",\n               \"client_id\": \"<CLIENT_ID>\"\n             }\n        ```",
+    "reason": "Lines 40-73: the Sample/Format tab fences are indented 12 spaces, which Python-Markdown reads as an indented code block containing the literal fence lines (and the Format fence never opens). Intent: two tabs in the request-object collapsible, at its body indentation (8 spaces)."
+  },
+  {
+    "id": "pre-initiated-request-object-details",
+    "file": "tryout-flows/accelerator-with-is/try-out-flow-pre_initiated_consent.md",
+    "find": "      - ??? tip \"Click here to see a sample request object...\"\n            - Given below is a sample request object in the JWT format:",
+    "replace": "    ??? tip \"Click here to see a sample request object...\"\n        - Given below is a sample request object in the JWT format:",
+    "reason": "Lines 213-214: `- ??? tip` puts the collapsible inside a bullet and its 12-space body renders as a code block, and the `Format` tab is broken. Intent: a collapsible in step 1 holding the intro bullet and the Sample/Format tabs (the stray bullet marker is removed)."
+  },
+  {
+    "id": "pre-initiated-request-object-tabs",
+    "file": "tryout-flows/accelerator-with-is/try-out-flow-pre_initiated_consent.md",
+    "find": "            ``` jwt tab='Sample'\n                 eyJraWQiOiJoM1pDRjBWcnpnWGduSENxYkhiS1h6emZqVGciLCJhbGciOiJQUzI1NiIsInR5cCI6IkpXVCJ9.eyJtYXhfYWdlIjo4NjQwMCwiYXVkIjoiaHR0cHM6Ly9sb2NhbGhvc3Q6OTQ0Ni9vYXV0aDIvdG9rZW4iLCJzY29wZSI6ImFjY291bnRzIG9wZW5pZCIsImlzcyI6IlM2dTJIZTRqeXd2eXlwVDdmR1lFeExTeXBRWWEiLCJjbGFpbXMiOnsiaWRfdG9rZW4iOnsiYWNyIjp7InZhbHVlcyI6WyJ1cm46b3BlbmJhbmtpbmc6cHNkMjpzY2EiLCJ1cm46b3BlbmJhbmtpbmc6cHNkMjpjYSJdLCJlc3NlbnRpYWwiOnRydWV9LCJvcGVuYmFua2luZ19pbnRlbnRfaWQiOnsidmFsdWUiOiI4NmM4YTA4NS1hNDQ0LTQyZDUtYmU0My05NjhiMzY2YTU0NjciLCJlc3NlbnRpYWwiOnRydWV9fSwidXNlcmluZm8iOnsib3BlbmJhbmtpbmdfaW50ZW50X2lkIjp7InZhbHVlIjoiODZjOGEwODUtYTQ0NC00MmQ1LWJlNDMtOTY4YjM2NmE1NDY3IiwiZXNzZW50aWFsIjp0cnVlfX19LCJyZXNwb25zZV90eXBlIjoiY29kZSBpZF90b2tlbiIsInJlZGlyZWN0X3VyaSI6Imh0dHBzOi8vd3d3Lmdvb2dsZS5jb20vIiwic3RhdGUiOiJZV2x6Y0Rvek1UUTIiLCJleHAiOjE3NTcyMzM1ODgsIm5vbmNlIjoibi0wUzZfV3pBMk1qIiwiY2xpZW50X2lkIjoiUzZ1MkhlNGp5d3Z5eXBUN2ZHWUV4TFN5cFFZYSJ9.mClPy-6g0Kn3JIF8P7odd-PiWYCSDhVyQJqn9SkHAXo07saGYD-YxQcqfghRnUbYc41SyAwtkw4bfbNLpqLFnmJsBiP3XjjDE0YwKwD4UXFMAac4zW9ooQtzr_5qXkGS5nNpua7KtpvNezNBgS5-c4MjuI6nUxL63rgmZyRoDlrK_Uxgx4CSxmJQkcHP8YzNvCVxe9ftpuKUlanCCgNvGg2ocmwpRP1G1-ZBr2e3nIfGsFxSaX-4vkur4chEyjk5YogfoxjnG1UjvP_al9M07W0J-eysviGMNqzJ7LDIVCDp5ZKrOnf1p_zPLE4No3xV8cN1ZTJJ_ufUABhJTYQKEw\n            ```\n                 \n            ``` tab='Format'\n                 {\n                   \"kid\": \"<The KID value of the signing jwk set>\",\n                   \"alg\": \"<SUPPORTED_ALGORITHM>\",\n                   \"typ\": \"JWT\"\n                 }\n                 {\n                   \"max_age\": 86400,\n                   \"aud\": \"<This is the audience that the ID token is intended for. Example, https://<IS_HOST>:9446/oauth2/token>\",\n                   \"scope\": \"accounts openid\",\n                   \"iss\": \"<CLIENT_ID>\",\n                   \"claims\": {\n                     \"id_token\": {\n                       \"acr\": {\n                         \"values\": [\n                           \"urn:openbanking:psd2:sca\",\n                           \"urn:openbanking:psd2:ca\"\n                         ],\n                         \"essential\": true\n                       },\n                       \"openbanking_intent_id\": {\n                         \"value\": \"<CONSENTID>\",\n                         \"essential\": true\n                       }\n                     },\n                     \"userinfo\": {\n                       \"openbanking_intent_id\": {\n                         \"value\": \"<CONSENTID>\",\n                         \"essential\": true\n                       }\n                     }\n                   },\n                   \"response_type\": \"code id_token\",  \n                   \"redirect_uri\": \"<CLIENT_APPLICATION_REDIRECT_URI>\",\n                   \"state\": \"YWlzcDozMTQ2\",\n                   \"exp\": <The expiration time of the request object in Epoch format>,\n                   \"nonce\": \"<PREVENTS_REPLAY_ATTACKS>\",\n                   \"client_id\": \"<CLIENT_ID>\"\n                 }\n            ```",
+    "replace": "        ``` jwt tab='Sample'\n             eyJraWQiOiJoM1pDRjBWcnpnWGduSENxYkhiS1h6emZqVGciLCJhbGciOiJQUzI1NiIsInR5cCI6IkpXVCJ9.eyJtYXhfYWdlIjo4NjQwMCwiYXVkIjoiaHR0cHM6Ly9sb2NhbGhvc3Q6OTQ0Ni9vYXV0aDIvdG9rZW4iLCJzY29wZSI6ImFjY291bnRzIG9wZW5pZCIsImlzcyI6IlM2dTJIZTRqeXd2eXlwVDdmR1lFeExTeXBRWWEiLCJjbGFpbXMiOnsiaWRfdG9rZW4iOnsiYWNyIjp7InZhbHVlcyI6WyJ1cm46b3BlbmJhbmtpbmc6cHNkMjpzY2EiLCJ1cm46b3BlbmJhbmtpbmc6cHNkMjpjYSJdLCJlc3NlbnRpYWwiOnRydWV9LCJvcGVuYmFua2luZ19pbnRlbnRfaWQiOnsidmFsdWUiOiI4NmM4YTA4NS1hNDQ0LTQyZDUtYmU0My05NjhiMzY2YTU0NjciLCJlc3NlbnRpYWwiOnRydWV9fSwidXNlcmluZm8iOnsib3BlbmJhbmtpbmdfaW50ZW50X2lkIjp7InZhbHVlIjoiODZjOGEwODUtYTQ0NC00MmQ1LWJlNDMtOTY4YjM2NmE1NDY3IiwiZXNzZW50aWFsIjp0cnVlfX19LCJyZXNwb25zZV90eXBlIjoiY29kZSBpZF90b2tlbiIsInJlZGlyZWN0X3VyaSI6Imh0dHBzOi8vd3d3Lmdvb2dsZS5jb20vIiwic3RhdGUiOiJZV2x6Y0Rvek1UUTIiLCJleHAiOjE3NTcyMzM1ODgsIm5vbmNlIjoibi0wUzZfV3pBMk1qIiwiY2xpZW50X2lkIjoiUzZ1MkhlNGp5d3Z5eXBUN2ZHWUV4TFN5cFFZYSJ9.mClPy-6g0Kn3JIF8P7odd-PiWYCSDhVyQJqn9SkHAXo07saGYD-YxQcqfghRnUbYc41SyAwtkw4bfbNLpqLFnmJsBiP3XjjDE0YwKwD4UXFMAac4zW9ooQtzr_5qXkGS5nNpua7KtpvNezNBgS5-c4MjuI6nUxL63rgmZyRoDlrK_Uxgx4CSxmJQkcHP8YzNvCVxe9ftpuKUlanCCgNvGg2ocmwpRP1G1-ZBr2e3nIfGsFxSaX-4vkur4chEyjk5YogfoxjnG1UjvP_al9M07W0J-eysviGMNqzJ7LDIVCDp5ZKrOnf1p_zPLE4No3xV8cN1ZTJJ_ufUABhJTYQKEw\n        ```\n                 \n        ``` tab='Format'\n             {\n               \"kid\": \"<The KID value of the signing jwk set>\",\n               \"alg\": \"<SUPPORTED_ALGORITHM>\",\n               \"typ\": \"JWT\"\n             }\n             {\n               \"max_age\": 86400,\n               \"aud\": \"<This is the audience that the ID token is intended for. Example, https://<IS_HOST>:9446/oauth2/token>\",\n               \"scope\": \"accounts openid\",\n               \"iss\": \"<CLIENT_ID>\",\n               \"claims\": {\n                 \"id_token\": {\n                   \"acr\": {\n                     \"values\": [\n                       \"urn:openbanking:psd2:sca\",\n                       \"urn:openbanking:psd2:ca\"\n                     ],\n                     \"essential\": true\n                   },\n                   \"openbanking_intent_id\": {\n                     \"value\": \"<CONSENTID>\",\n                     \"essential\": true\n                   }\n                 },\n                 \"userinfo\": {\n                   \"openbanking_intent_id\": {\n                     \"value\": \"<CONSENTID>\",\n                     \"essential\": true\n                   }\n                 }\n               },\n               \"response_type\": \"code id_token\",  \n               \"redirect_uri\": \"<CLIENT_APPLICATION_REDIRECT_URI>\",\n               \"state\": \"YWlzcDozMTQ2\",\n               \"exp\": <The expiration time of the request object in Epoch format>,\n               \"nonce\": \"<PREVENTS_REPLAY_ATTACKS>\",\n               \"client_id\": \"<CLIENT_ID>\"\n             }\n        ```",
+    "reason": "Lines 216-259: the Sample/Format tab fences are indented 12 spaces, which Python-Markdown reads as an indented code block containing the literal fence lines (and the Format fence never opens). Intent: two tabs in the request-object collapsible, at its body indentation (8 spaces)."
+  },
+  {
+    "id": "pre-initiated-note-body",
+    "file": "tryout-flows/accelerator-with-is/try-out-flow-pre_initiated_consent.md",
+    "find": "  !!! note\n  The response contains the validity of the Account access request along with consent information or the reason for the validation failure.",
+    "replace": "    !!! note\n        The response contains the validity of the Account access request along with consent information or the reason for the validation failure.",
+    "reason": "Lines 382-383: `!!! note` and its body are indented 2 spaces, so MkDocs renders `!!! note The response contains…` as literal paragraph text. Intent: a note inside the bullet."
+  },
+  {
+    "id": "wso2-clusters-fence-indent",
+    "file": "install-and-setup/wso2-clusters-with-nginx.md",
+    "find": "    ``` \n   ```bash",
+    "replace": "    ``` \n    ```bash",
+    "reason": "Line 48: the `bash` fence opens at 3 spaces but closes at 4, so superfences drops it and MkDocs shows the fence and `openssl rsa …` as text in step 4. Intent: a code block like the step's other commands."
+  },
+  {
+    "id": "wso2-clusters-note-body",
+    "file": "install-and-setup/wso2-clusters-with-nginx.md",
+    "find": "    For NGINX Open Source, the location depends on the installation method and OS. Common locations include /usr/local/nginx/conf, /etc/nginx, or /usr/local/etc/nginx.\n    See [NGINX docs](https://docs.nginx.com/nginx/admin-guide/basic-functionality/managing-configuration-files/) for details.",
+    "replace": "        For NGINX Open Source, the location depends on the installation method and OS. Common locations include /usr/local/nginx/conf, /etc/nginx, or /usr/local/etc/nginx.\n        See [NGINX docs](https://docs.nginx.com/nginx/admin-guide/basic-functionality/managing-configuration-files/) for details.",
+    "reason": "Lines 67-69: the `!!!Note` body is at the marker's indentation, so MkDocs renders an empty Note box and the text as a paragraph after it. Intent: the text is the note's body."
+  },
+  {
+    "id": "wso2-clusters-caption-fence-1",
+    "file": "install-and-setup/wso2-clusters-with-nginx.md",
+    "find": "    ```Click here to view a generic Nginx configuration",
+    "replace": "    Click here to view a generic Nginx configuration\n\n    ```",
+    "reason": "Line 71: a fence whose info string is a caption is not a fence, so MkDocs renders the caption and the first config lines as a paragraph and the rest as stray code. Intent: the caption, then the configuration as one code block."
+  },
+  {
+    "id": "wso2-clusters-caption-fence-2",
+    "file": "install-and-setup/wso2-clusters-with-nginx.md",
+    "find": "    ```Nginx configuration that exposes /oauth2, /commonauth, and other endpoints",
+    "replace": "    Nginx configuration that exposes /oauth2, /commonauth, and other endpoints\n\n    ```",
+    "reason": "Line 95: a fence whose info string is a caption is not a fence, so MkDocs renders an empty code span, the caption and the config as broken paragraphs and code. Intent: the caption, then the configuration as one code block."
+  },
+  {
+    "id": "deploy-apis-dcr-details-title",
+    "file": "tryout-flows/accelerator-with-is-and-apim/deploy-apis-dcr.md",
+    "find": "??? tip Adding Mock Banking Backend",
+    "replace": "??? tip \"Adding Mock Banking Backend\"",
+    "reason": "Line 26: `??? tip Adding Mock Banking Backend` (title not quoted) makes MkDocs use all five words as CSS classes and show the title `Tip`. Intent: a tip titled 'Adding Mock Banking Backend'."
+  },
+  {
+    "id": "configure-users-and-roles-table",
+    "file": "get-started/configure-users-and-roles.md",
+    "find": "    | API Resource | Identifier | Display Names | Scopes | \n    |------------- | ---------- | ------------- | ------ |\n    | API resource to acccess internal Open Banking APIs provided by WSO2 | OB-internal-api-resource | OB-internal-api-resource | ob-internal-api-access |",
+    "replace": "| API Resource | Identifier | Display Names | Scopes | \n|------------- | ---------- | ------------- | ------ |\n| API resource to acccess internal Open Banking APIs provided by WSO2 | OB-internal-api-resource | OB-internal-api-resource | ob-internal-api-access |",
+    "reason": "Lines 19-21: the API resource table is indented 4 spaces, so MkDocs renders it as a code block of pipe characters. Intent: a table."
+  },
+  {
+    "id": "configure-resources-for-is-table",
+    "file": "get-started/configure-resources-users-and-roles-for-is.md",
+    "find": "    | API Resource | Identifier | Display Names | Scopes | \n    |------------- | ---------- | ------------- | ------ |\n    | API Resource for access scopes attached to customer facing Open Banking APIs | User-defined-oauth2-resource | User-defined-oauth2-resource | accounts </br>payments </br>fundsconfirmations |\n    | API resource to acccess internal Open Banking APIs provided by WSO2 | OB-internal-api-resource | OB-internal-api-resource | ob-internal-api-access |",
+    "replace": "| API Resource | Identifier | Display Names | Scopes | \n|------------- | ---------- | ------------- | ------ |\n| API Resource for access scopes attached to customer facing Open Banking APIs | User-defined-oauth2-resource | User-defined-oauth2-resource | accounts </br>payments </br>fundsconfirmations |\n| API resource to acccess internal Open Banking APIs provided by WSO2 | OB-internal-api-resource | OB-internal-api-resource | ob-internal-api-access |",
+    "reason": "Lines 19-22: the API resource table is indented 4 spaces, so MkDocs renders it as a code block of pipe characters. Intent: a table."
+  },
+  {
+    "id": "configure-resources-table-1",
+    "file": "install-and-setup/configure-resources-users-and-roles.md",
+    "find": "    | API Resource | Identifier | Display Names | Scopes | \n    |------------- | ---------- | ------------- | ------ |\n    | API Resource for access scopes attached to customer facing Open Banking APIs | User-defined-oauth2-resource | User-defined-oauth2-resource | accounts, payments ,fundsconfirmations |\n    | API resource to acccess internal Open Banking APIs provided by WSO2 | OB-internal-api-resource | OB-internal-api-resource | ob-internal-api-access |",
+    "replace": "| API Resource | Identifier | Display Names | Scopes | \n|------------- | ---------- | ------------- | ------ |\n| API Resource for access scopes attached to customer facing Open Banking APIs | User-defined-oauth2-resource | User-defined-oauth2-resource | accounts, payments ,fundsconfirmations |\n| API resource to acccess internal Open Banking APIs provided by WSO2 | OB-internal-api-resource | OB-internal-api-resource | ob-internal-api-access |",
+    "reason": "Lines 23-26: the API resource table is indented 4 spaces, so MkDocs renders it as a code block of pipe characters. Intent: a table."
+  },
+  {
+    "id": "configure-resources-table-2",
+    "file": "install-and-setup/configure-resources-users-and-roles.md",
+    "find": "    | API Resource | Identifier | Display Names | Scopes | \n    |------------- | ---------- | ------------- | ------ |\n    | API resource to acccess internal Open Banking APIs provided by WSO2 | OB-internal-api-resource | OB-internal-api-resource | ob-internal-api-access |",
+    "replace": "| API Resource | Identifier | Display Names | Scopes | \n|------------- | ---------- | ------------- | ------ |\n| API resource to acccess internal Open Banking APIs provided by WSO2 | OB-internal-api-resource | OB-internal-api-resource | ob-internal-api-access |",
+    "reason": "Lines 159-161: the API resource table is indented 4 spaces, so MkDocs renders it as a code block of pipe characters. Intent: a table."
+  },
+  {
+    "id": "custom-request-router-link-spaces",
+    "file": "develop/java/custom-request-router.md",
+    "find": "    the [sample code block](#:~:text={The sample approach is as follows:} ) given above.",
+    "replace": "    the [sample code block](<#:~:text={The sample approach is as follows:}>) given above.",
+    "reason": "Line 101: the link target contains spaces, which Python-Markdown accepts (href `#:~:text={The sample approach is as follows:}`) but CommonMark does not. Intent: the same link, written with an angle-bracket destination."
+  },
+  {
+    "id": "consent-management-manage-methods",
+    "file": "develop/java/consent-management-manage.md",
+    "find": "```\n!!! note",
+    "replace": "```\n\n!!! note",
+    "reason": "Line 50: `!!! note` directly follows the code block of line 44-49 in the same block, so Python-Markdown drops everything from line 17 (the Interface and Methods sections) up to the note. Intent: keep those sections, then the note."
+  },
+  {
+    "id": "custom-dcr-validator-ssa-sample",
+    "file": "develop/java/custom-dcr-validator.md",
+    "find": "````\n??? tip \"Click here to see how to write validations:\"",
+    "replace": "````\n\n??? tip \"Click here to see how to write validations:\"",
+    "reason": "Line 232: `??? tip` directly follows the `setSoftwareStatementPayload` code block (lines 222-230), so Python-Markdown drops that code block. Intent: keep the code block, then the collapsible."
+  },
+  {
+    "id": "openapi-authorization-flow-intro",
+    "file": "develop/openapi/openapi-authorization-flow.md",
+    "find": "This section covers the OpenAPI based extension provided for the user authorization flow.\n!!! note",
+    "replace": "This section covers the OpenAPI based extension provided for the user authorization flow.\n\n!!! note",
+    "reason": "Line 2: `!!! note` directly follows the intro sentence on line 1, so Python-Markdown drops the sentence. Intent: keep the intro sentence, then the note."
+  },
+  {
+    "id": "openapi-token-flow-intro",
+    "file": "develop/openapi/openapi-token-flow.md",
+    "find": "This section covers the OpenAPI based accelerator extension provided for the OAuth2 token generation flow. \n!!! note",
+    "replace": "This section covers the OpenAPI based accelerator extension provided for the OAuth2 token generation flow. \n\n!!! note",
+    "reason": "Line 2: `!!! note` directly follows the intro sentence on line 1, so Python-Markdown drops the sentence. Intent: keep the intro sentence, then the note."
+  },
+  {
+    "id": "custom-request-object-validator-step-4",
+    "file": "develop/java/custom-request-object-validator.md",
+    "find": "    UKRequestObject ukRequestObject = new UKRequestObject(obRequestObject);\n  ```\n   ",
+    "replace": "    UKRequestObject ukRequestObject = new UKRequestObject(obRequestObject);\n  ```\n\n<!-- -->\n",
+    "reason": "Line 54: step `4.` follows a bullet list after a blank line, so Python-Markdown merges it into that list and renders it as a bullet. Intent: numbered step 4 (an empty comment separates the two lists)."
+  },
+  {
+    "id": "consent-try-out-step-3-bullets",
+    "file": "learn/consent-management-try-out.md",
+    "find": "- List of bank accounts\n- Information that the API consumer wishes to access",
+    "replace": "    - List of bank accounts\n    - Information that the API consumer wishes to access",
+    "reason": "Lines 152-153: unindented `- ` lines under step 3 become numbered items 4 and 5 of the ordered list in MkDocs. Intent: bullets nested in step 3."
+  },
+  {
+    "id": "consent-try-out-step-4-bullets",
+    "file": "learn/consent-management-try-out.md",
+    "find": "- Permissions\n- Transaction period\n- Expiration date",
+    "replace": "    - Permissions\n    - Transaction period\n    - Expiration date",
+    "reason": "Lines 156-158: unindented `- ` lines under step 4 become numbered items of the ordered list in MkDocs. Intent: bullets nested in step 4."
+  },
+  {
+    "id": "active-active-closing-fence",
+    "file": "install-and-setup/active-active-identity-server-deployment.md",
+    "find": "    ```",
+    "replace": "   ```",
+    "reason": "Line 40: the `toml` fence of step 2 opens at 3 spaces but closes at 4, so superfences drops it and MkDocs shows the fence and `[super_admin]` lines as text. Intent: a code block."
+  },
+  {
+    "id": "deploy-with-docker-closing-fence-1",
+    "file": "install-and-setup/deploy-with-docker.md",
+    "find": "1. Navigate to `<OB_DOCKER_HOME>/samples/wso2is_with_obiam` directory.\n2. Log in to the WSO2 Docker registry.\n\n    ```shell\n     docker login registry.wso2.com\n    ```\n\n    ````\n    - Username: Your registered email address\n    - Password: CLI secret extracted from your User Profile at [registry.wso2.com](http://registry.wso2.com)\n   ````   ",
+    "replace": "1. Navigate to `<OB_DOCKER_HOME>/samples/wso2is_with_obiam` directory.\n2. Log in to the WSO2 Docker registry.\n\n    ```shell\n     docker login registry.wso2.com\n    ```\n\n    ````\n    - Username: Your registered email address\n    - Password: CLI secret extracted from your User Profile at [registry.wso2.com](http://registry.wso2.com)\n    ````",
+    "reason": "Line 80: the four-backtick fence opens at 4 spaces but closes at 3, so superfences drops it and MkDocs shows the backticks and the Username/Password bullets as text. Intent: the fenced block as written."
+  },
+  {
+    "id": "deploy-with-docker-closing-fence-2",
+    "file": "install-and-setup/deploy-with-docker.md",
+    "find": "1. Navigate to `<OB_DOCKER_HOME>/samples/wso2am_with_obam` directory.\n2. Log in to the WSO2 Docker registry.\n\n    ```shell\n     docker login registry.wso2.com\n    ```\n\n    ````\n    - Username: Your registered email address\n    - Password: CLI secret extracted from your User Profile at [registry.wso2.com](http://registry.wso2.com)\n   ````   ",
+    "replace": "1. Navigate to `<OB_DOCKER_HOME>/samples/wso2am_with_obam` directory.\n2. Log in to the WSO2 Docker registry.\n\n    ```shell\n     docker login registry.wso2.com\n    ```\n\n    ````\n    - Username: Your registered email address\n    - Password: CLI secret extracted from your User Profile at [registry.wso2.com](http://registry.wso2.com)\n    ````",
+    "reason": "Line 110: the four-backtick fence opens at 4 spaces but closes at 3, so superfences drops it and MkDocs shows the backticks and the Username/Password bullets as text. Intent: the fenced block as written."
+  },
+  {
+    "id": "ciba-set-up-flow-closing-fence",
+    "file": "learn/ciba-set-up-flow.md",
+    "find": "                  ```",
+    "replace": "                 ```",
+    "reason": "Line 188: the `toml` fence opens at 17 spaces but closes at 18, so superfences drops it and MkDocs shows the fence and config lines as text. Intent: a code block."
+  }
+]
