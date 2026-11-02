@@ -149,6 +149,33 @@ def test_placeholder_tokens_visible_only_in_docusaurus():
     assert run(mkdocs, docusaurus, "placeholder-visible").passed
 
 
+def test_placeholder_rule_accepts_ident_and_generic_type_tokens():
+    mkdocs = [make_page(blocks=["Use the map and call it"], lists=[
+        {"ordered": False, "start": None, "depth": 0, "items": ["Open /conf"]}])]
+    docusaurus = [make_page(blocks=["Use the <IS_HOME> map <String, String> and call it"], lists=[
+        {"ordered": False, "start": None, "depth": 0, "items": ["Open <IS_HOME>/conf"]}])]
+    assert run(mkdocs, docusaurus, "placeholder-visible").passed
+
+
+def test_placeholder_removed_from_docusaurus_fails():
+    mkdocs = [make_page(blocks=["Go to <APIM_HOME>/repository"])]
+    docusaurus = [make_page(blocks=["Go to /repository"])]
+    assert not run(mkdocs, docusaurus, "placeholder-visible").passed
+
+
+def test_placeholder_swapped_for_another_token_fails():
+    mkdocs = [make_page(blocks=["Go to <APIM_HOME>/repository"])]
+    docusaurus = [make_page(blocks=["Go to <IS_HOME>/repository"])]
+    assert not run(mkdocs, docusaurus, "placeholder-visible").passed
+
+
+def test_bracketed_ordinary_phrase_is_not_a_placeholder():
+    mkdocs = [make_page(blocks=["Configure it now"])]
+    assert not run(mkdocs, [make_page(blocks=["Configure it <see below> now"])], "placeholder-visible").passed
+    assert not run(mkdocs, [make_page(blocks=["Configure it <String,String> now"])], "placeholder-visible").passed
+    assert not run(mkdocs, [make_page(blocks=["Configure it <a-b> now"])], "placeholder-visible").passed
+
+
 def test_placeholder_rule_does_not_hide_real_text_changes_or_code():
     mkdocs = [make_page(blocks=["Go to /repository"], code=["a <X> b"])]
     assert not run(mkdocs, [make_page(blocks=["Go to <X>/other"], code=["a <X> b"])], "placeholder-visible").passed
@@ -169,15 +196,79 @@ def test_deprecated_banner_page_may_be_absent_only_when_listed():
 # ------------------------------------------------------------------ fixups
 
 
-def test_fixup_rule_explains_only_declared_pages_and_fields():
-    mkdocs = [make_page(blocks=["a"]), make_page("other/", blocks=["a"])]
-    docusaurus = [make_page(blocks=["b"]), make_page("other/", blocks=["b"])]
-    scoped = compare.Rule(name="fixup:typo-1", pages=frozenset({PAGE_PATH}), fields=frozenset({"blocks"}))
-    result = compare.compare_models(
-        {page["path"]: page for page in mkdocs}, {page["path"]: page for page in docusaurus}, [scoped]
+def fixup(**overrides):
+    """A pinned fixup rule for the sample page."""
+    options = {"name": "fixup:typo-1", "pages": frozenset({PAGE_PATH}), "field": "blocks",
+               "replace_from": "teh", "replace_to": "the", "reason": "typo"}
+    options.update(overrides)
+    return compare.Rule(**options)
+
+
+def run_with(rules, mkdocs, docusaurus):
+    """Compare page lists under explicit Rule objects."""
+    return compare.compare_models(
+        {page["path"]: page for page in mkdocs}, {page["path"]: page for page in docusaurus}, rules
     )
+
+
+def test_fixup_pinned_change_passes_only_on_its_page():
+    mkdocs = [make_page(blocks=["Fix teh typo", "same"]), make_page("other/", blocks=["Fix teh typo"])]
+    docusaurus = [make_page(blocks=["Fix the typo", "same"]), make_page("other/", blocks=["Fix the typo"])]
+    result = run_with([fixup()], mkdocs, docusaurus)
     assert [diff.path for diff in result.unexplained] == ["other/"]
     assert result.rule_counts == {"fixup:typo-1": 1}
+
+
+def test_fixup_rejects_extra_unrelated_change_in_the_same_field():
+    mkdocs = [make_page(blocks=["Fix teh typo"])]
+    docusaurus = [make_page(blocks=["Fix the typo and add more words"])]
+    result = run_with([fixup()], mkdocs, docusaurus)
+    assert not result.passed and result.unexplained[0].field == "blocks"
+
+
+def test_fixup_rejects_extra_changed_element_in_a_list_field():
+    mkdocs = [make_page(blocks=["Fix teh typo", "second"])]
+    docusaurus = [make_page(blocks=["Fix the typo", "second changed"])]
+    assert not run_with([fixup()], mkdocs, docusaurus).passed
+    assert not run_with([fixup()], mkdocs, [make_page(blocks=["Fix the typo"])]).passed
+
+
+def test_fixup_whose_from_text_does_not_occur_is_unexplained_and_unused():
+    mkdocs = [make_page(blocks=["Fix this typo"])]
+    docusaurus = [make_page(blocks=["Fix that typo"])]
+    result = run_with([fixup()], mkdocs, docusaurus)
+    assert not result.passed
+    assert result.unused_rules == ["fixup:typo-1"] and result.unexplained
+
+
+def test_fixup_requires_exactly_one_occurrence_and_the_right_field():
+    twice = run_with([fixup()], [make_page(blocks=["teh and teh"])], [make_page(blocks=["the and the"])])
+    assert not twice.passed
+    wrong_field = run_with([fixup(field="title")], [make_page(blocks=["teh"])], [make_page(blocks=["the"])])
+    assert not wrong_field.passed
+
+
+def test_fixup_on_scalar_and_structured_fields():
+    title = run_with([fixup(field="title", replace_from="Old", replace_to="New")],
+                     [make_page(title="Old name")], [make_page(title="New name")])
+    assert title.passed
+    admonition = {"kind": "details", "type": "tip", "title": "x", "open": False}
+    structured = run_with(
+        [fixup(field="admonitions", replace_from='"type":"tip"', replace_to='"type":"note"')],
+        [make_page(admonitions=[admonition])], [make_page(admonitions=[{**admonition, "type": "note"}])],
+    )
+    assert structured.passed
+
+
+# ----------------------------------------------------------------- h1 ids
+
+
+def test_h1_ids_are_exempt_but_other_heading_ids_are_not():
+    mkdocs = [make_page(headings=[[1, "Intro", "introduction"], [2, "Setup", "setup"]])]
+    assert run(mkdocs, [make_page(headings=[[1, "Intro", ""], [2, "Setup", "setup"]])]).passed
+    assert not run(mkdocs, [make_page(headings=[[1, "Intro", ""], [2, "Setup", "other-id"]])]).passed
+    assert not run(mkdocs, [make_page(headings=[[1, "Other", ""], [2, "Setup", "setup"]])]).passed
+    assert not run(mkdocs, [make_page(headings=[[2, "Intro", ""], [2, "Setup", "setup"]])]).passed
 
 
 # ------------------------------------------------------- allowlist loading
@@ -198,20 +289,29 @@ def test_load_rules_reads_names_and_fixup_scopes(tmp_path):
     rules = compare.load_rules(write_yaml(tmp_path, """
 rules:
   - name: ol-start
-  - name: "fixup:one"
+  - id: one
     reason: typo corrected in source
     pages: [learn/sample/]
-    fields: [blocks]
+    field: blocks
+    from: "teh"
+    to: "the"
 """))
     assert [rule.name for rule in rules] == ["ol-start", "fixup:one"]
-    assert rules[1].pages == frozenset({"learn/sample/"}) and rules[1].fields == frozenset({"blocks"})
+    assert rules[1].pages == frozenset({"learn/sample/"}) and rules[1].field == "blocks"
+    assert (rules[1].replace_from, rules[1].replace_to) == ("teh", "the")
 
 
 @pytest.mark.parametrize("text", [
     "rules:\n  - name: made-up-rule\n",
     "rules:\n  - name: ol-start\n  - name: ol-start\n",
-    "rules:\n  - name: 'fixup:x'\n",
-    "rules:\n  - name: 'fixup:x'\n    pages: [a/]\n    fields: [nonsense]\n",
+    "rules:\n  - name: 'fixup:x'\n    pages: [a/]\n    field: blocks\n    from: a\n    to: b\n    reason: r\n",
+    "rules:\n  - id: x\n    pages: [a/]\n    field: blocks\n    from: a\n    to: b\n",
+    "rules:\n  - id: x\n    pages: [a/]\n    field: blocks\n    from: a\n    reason: r\n",
+    "rules:\n  - id: x\n    pages: [a/]\n    field: nonsense\n    from: a\n    to: b\n    reason: r\n",
+    "rules:\n  - id: x\n    pages: [a/]\n    field: blocks\n    from: a\n    to: a\n    reason: r\n",
+    "rules:\n  - id: x\n    pages: [a/]\n    field: blocks\n    from: a\n    to: b\n    reason: r\n    extra: 1\n",
+    "rules:\n  - id: x\n    pages: [a/]\n    field: blocks\n    from: no\n    to: b\n    reason: r\n",
+    "rules:\n  - name: ol-start\n    field: blocks\n",
     "rules:\n  - name: ol-start\n    surprise: 1\n",
     "rules: not-a-list\n",
     "- just-a-list\n",

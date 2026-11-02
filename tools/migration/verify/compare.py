@@ -13,22 +13,30 @@ Allowlist file format (``yaml.safe_load`` only)::
 
     rules:
       - name: ol-start                  # a built-in rule name, optionally with `pages: [...]`
-      - name: "fixup:<id>"              # one per converter fixup entry
+      - id: some-fixup                  # one entry per converter fixup, rule name `fixup:some-fixup`
+        pages: [learn/example/]         # base-relative page paths
+        field: blocks                   # the one model field that changed
+        from: "old wording"             # the change is pinned exactly: the Docusaurus value must equal
+        to: "new wording"               # the MkDocs value with `from` replaced by `to` once
         reason: why the difference is accepted
-        pages: [learn/example/]         # required for fixups: base-relative page paths
-        fields: [blocks]                # required for fixups: model fields the fixup may change
+
+All fixup keys are required. For list-valued fields the replacement is applied to the serialised text
+(strings as they are, other elements as compact JSON with sorted keys) of each changed element.
+
+h1 headings are compared by (level, text) only: MkDocs gives markdown H1s an id, Docusaurus never does.
 """
 
 import argparse
 import difflib
+import itertools
 import json
 import logging
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
-from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, FrozenSet, Iterator, List, Optional, Sequence, Tuple
 
 import yaml
 
@@ -44,9 +52,12 @@ BUILTIN_RULE_NAMES = (
     "placeholder-visible", "ol-start", "nested-list", "list-not-paragraph",
     "admonition-title-markup", "deprecated-banner-page-removed",
 )
-_FIXUP_NAME = re.compile(r"^fixup:[A-Za-z0-9][A-Za-z0-9._-]*$")
-_ALLOWED_RULE_KEYS = {"name", "reason", "pages", "fields"}
-_PLACEHOLDER_TOKEN = re.compile(r"<[A-Za-z_][A-Za-z0-9_.\-]*(?:\s[^<>]*)?>")
+_FIXUP_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+_BUILTIN_RULE_KEYS = {"name", "reason", "pages"}
+_FIXUP_KEYS = {"id", "pages", "field", "from", "to", "reason"}
+# `<IDENT>` placeholders and generic-type text such as `<String, JSONObject>`; nothing else.
+_PLACEHOLDER_TOKEN = re.compile(r"<[A-Za-z_][A-Za-z0-9_]*(?:, [A-Za-z_][A-Za-z0-9_]*)*>")
+_MAX_TOKEN_OCCURRENCES = 12
 _LIST_MARKER = re.compile(r"(?<!\S)(?:[-*+•]|\d+[.)])(?=\s|$)")
 _MAX_DIFF_LINES = 40
 
@@ -61,12 +72,17 @@ class ModelError(Exception):
 
 @dataclass(frozen=True)
 class Rule:
-    """One allowlist rule; ``pages``/``fields`` optionally restrict where it may apply."""
+    """One allowlist rule; ``pages`` optionally restricts where it may apply.
+
+    ``fixup:<id>`` rules also carry the pinned change: ``field``, ``replace_from`` and ``replace_to``.
+    """
 
     name: str
     pages: Optional[FrozenSet[str]] = None
-    fields: Optional[FrozenSet[str]] = None
     reason: str = ""
+    field: Optional[str] = None
+    replace_from: Optional[str] = None
+    replace_to: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -105,9 +121,33 @@ def collapse(text: str) -> str:
     return " ".join(text.split())
 
 
-def strip_placeholders(text: str) -> str:
-    """Remove ``<IDENT...>`` tokens, which MkDocs swallows as unknown HTML but Docusaurus shows."""
-    return collapse(_PLACEHOLDER_TOKEN.sub("", text))
+def placeholder_removals(docusaurus_text: str, mkdocs_text: str) -> Iterator[str]:
+    """Yield the ways to remove surplus placeholder tokens from the Docusaurus text.
+
+    MkDocs swallows ``<IDENT>`` as unknown HTML while Docusaurus shows it. The Docusaurus text must
+    contain every token of the MkDocs text (tokens may only be inserted, never lost); each yielded
+    candidate has exactly the surplus tokens removed (all choices of which occurrence), whitespace collapsed.
+    """
+    mkdocs_tokens = Counter(_PLACEHOLDER_TOKEN.findall(mkdocs_text))
+    occurrences: Dict[str, list] = defaultdict(list)
+    for match in _PLACEHOLDER_TOKEN.finditer(docusaurus_text):
+        occurrences[match.group()].append(match)
+    if sum(len(found) for found in occurrences.values()) > _MAX_TOKEN_OCCURRENCES:
+        return
+    if any(len(occurrences[token]) < count for token, count in mkdocs_tokens.items()):
+        return
+    choices = [
+        itertools.combinations(found, len(found) - mkdocs_tokens.get(token, 0))
+        for token, found in occurrences.items()
+    ]
+    for picks in itertools.product(*choices):
+        spans = sorted((match.start(), match.end()) for pick in picks for match in pick)
+        pieces, position = [], 0
+        for start, end in spans:
+            pieces.append(docusaurus_text[position:start])
+            position = end
+        pieces.append(docusaurus_text[position:])
+        yield collapse("".join(pieces))
 
 
 def strip_title_markup(text: str) -> str:
@@ -152,11 +192,49 @@ def _without_key(entries: Sequence[dict], key: str) -> List[dict]:
 
 
 def _placeholder_visible(field: str, mkdocs: dict, docusaurus: dict) -> bool:
-    """Docusaurus text equals the MkDocs text once inserted ``<IDENT...>`` tokens are removed."""
+    """Docusaurus text equals the MkDocs text plus inserted ``<IDENT>`` tokens (never fewer tokens)."""
     if field == "code" or field not in MODEL_FIELDS:
         return False
-    return (map_text(field, mkdocs[field], strip_placeholders)
-            == map_text(field, docusaurus[field], strip_placeholders))
+    mkdocs_texts: List[str] = []
+    map_text(field, mkdocs[field], lambda text: mkdocs_texts.append(text) or text)
+    expected = iter(mkdocs_texts)
+
+    def remove_inserted_tokens(docusaurus_text: str) -> str:
+        mkdocs_text = next(expected)
+        return next((c for c in placeholder_removals(docusaurus_text, mkdocs_text) if c == mkdocs_text),
+                    docusaurus_text)
+
+    try:
+        return map_text(field, docusaurus[field], remove_inserted_tokens) == mkdocs[field]
+    except (StopIteration, KeyError, TypeError, ValueError):
+        return False
+
+
+def _serialise(element: object) -> str:
+    """Text form of one field element used by pinned fixups: strings verbatim, others compact JSON."""
+    if isinstance(element, str):
+        return element
+    return json.dumps(element, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def _fixup_explains(rule: Rule, field: str, mkdocs: dict, docusaurus: dict) -> bool:
+    """The Docusaurus value equals the MkDocs value with ``from`` replaced by ``to`` exactly once.
+
+    For list-valued fields every changed element must satisfy this and the lengths must match.
+    """
+    if field != rule.field:
+        return False
+    before, after = mkdocs[field], docusaurus[field]
+    pairs = [(before, after)] if isinstance(before, str) else None
+    if pairs is None:
+        if not (isinstance(before, list) and isinstance(after, list) and len(before) == len(after)):
+            return False
+        pairs = [(old, new) for old, new in zip(before, after) if old != new]
+    for old, new in pairs:
+        old_text = _serialise(old)
+        if old_text.count(rule.replace_from) != 1 or old_text.replace(rule.replace_from, rule.replace_to, 1) != _serialise(new):
+            return False
+    return bool(pairs)
 
 
 def _ol_start(field: str, mkdocs: dict, docusaurus: dict) -> bool:
@@ -224,7 +302,7 @@ def rule_explains_field(rule: Rule, field: str, mkdocs: dict, docusaurus: dict) 
     if rule.pages is not None and mkdocs["path"] not in rule.pages:
         return False
     if rule.name.startswith("fixup:"):
-        return rule.fields is not None and field in rule.fields
+        return _fixup_explains(rule, field, mkdocs, docusaurus)
     predicate = _FIELD_RULES.get(rule.name)
     return predicate is not None and predicate(field, mkdocs, docusaurus)
 
@@ -239,10 +317,18 @@ def rule_explains_missing_page(rule: Rule, path: str) -> bool:
 # -------------------------------------------------------------------- the diff
 
 
+def _without_h1_ids(page: dict) -> dict:
+    """Copy of the page with the ids of level-1 headings blanked (exempt: only MkDocs gives H1s an id)."""
+    return {**page, "headings": [[level, text, "" if level == 1 else heading_id]
+                                 for level, text, heading_id in page["headings"]]}
+
+
 def compare_models(mkdocs_pages: Dict[str, dict], docusaurus_pages: Dict[str, dict], rules: Sequence[Rule]) -> Result:
     """Compare page models keyed by path and attribute every difference to the rules that explain it."""
     counts: Counter = Counter()
     result = Result(pages_mkdocs=len(mkdocs_pages), pages_docusaurus=len(docusaurus_pages))
+    mkdocs_pages = {path: _without_h1_ids(page) for path, page in mkdocs_pages.items()}
+    docusaurus_pages = {path: _without_h1_ids(page) for path, page in docusaurus_pages.items()}
     for path in sorted(set(mkdocs_pages) | set(docusaurus_pages)):
         mkdocs, docusaurus = mkdocs_pages.get(path), docusaurus_pages.get(path)
         if mkdocs is None:
@@ -288,7 +374,7 @@ def load_rules(path: Path) -> List[Rule]:
 
     Raises:
         AllowlistError: for unreadable files, YAML errors (``safe_load`` rejects arbitrary tags),
-            unknown rule names or keys, duplicate rules, or fixups without reason/pages/fields.
+            unknown rule names or keys, duplicate rules, or fixups missing any of id/pages/field/from/to/reason.
     """
     try:
         document = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -306,40 +392,56 @@ def load_rules(path: Path) -> List[Rule]:
     return rules
 
 
-def _string_set(entry: dict, key: str) -> Optional[FrozenSet[str]]:
+def _string_set(entry: dict, key: str, label: str) -> Optional[FrozenSet[str]]:
     """Read an optional list-of-strings key of a rule entry as a frozenset."""
     if key not in entry:
         return None
     value = entry[key]
     if not isinstance(value, list) or not value or not all(isinstance(item, str) for item in value):
-        raise AllowlistError(f"`{key}` of rule {entry.get('name')!r} must be a non-empty list of strings")
+        raise AllowlistError(f"`{key}` of rule {label!r} must be a non-empty list of strings")
     return frozenset(value)
 
 
 def _parse_rule(entry: object) -> Rule:
-    """Validate one allowlist entry and turn it into a ``Rule``."""
-    if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
-        raise AllowlistError(f"every rule must be a mapping with a string `name`, got {entry!r}")
+    """Validate one allowlist entry (built-in rule with `name`, or fixup with `id`) into a ``Rule``."""
+    if not isinstance(entry, dict) or ("name" in entry) == ("id" in entry):
+        raise AllowlistError(f"every rule must be a mapping with either a built-in `name` or a fixup `id`, got {entry!r}")
+    if "id" in entry:
+        return _parse_fixup(entry)
     name = entry["name"]
-    unknown_keys = set(entry) - _ALLOWED_RULE_KEYS
+    if not isinstance(name, str) or name not in BUILTIN_RULE_NAMES:
+        raise AllowlistError(f"unknown rule {name!r}; built-in rules: {list(BUILTIN_RULE_NAMES)} (fixups use `id`)")
+    unknown_keys = set(entry) - _BUILTIN_RULE_KEYS
     if unknown_keys:
         raise AllowlistError(f"rule {name!r} has unknown keys {sorted(unknown_keys)}")
-    pages, fields = _string_set(entry, "pages"), _string_set(entry, "fields")
     reason = entry.get("reason", "")
     if not isinstance(reason, str):
         raise AllowlistError(f"`reason` of rule {name!r} must be a string")
-    if name.startswith("fixup:"):
-        if not _FIXUP_NAME.match(name):
-            raise AllowlistError(f"invalid fixup rule name {name!r}")
-        if not (reason and pages and fields):
-            raise AllowlistError(f"fixup rule {name!r} requires `reason`, `pages` and `fields`")
-    elif name not in BUILTIN_RULE_NAMES:
-        raise AllowlistError(f"unknown rule {name!r}; built-in rules: {list(BUILTIN_RULE_NAMES)} or fixup:<id>")
-    elif fields is not None:
-        raise AllowlistError(f"built-in rule {name!r} does not take `fields`")
-    if fields is not None and not fields <= set(MODEL_FIELDS):
-        raise AllowlistError(f"rule {name!r} lists unknown fields {sorted(fields - set(MODEL_FIELDS))}")
-    return Rule(name=name, pages=pages, fields=fields, reason=reason)
+    return Rule(name=name, pages=_string_set(entry, "pages", name), reason=reason)
+
+
+def _parse_fixup(entry: dict) -> Rule:
+    """Validate a fixup entry: all of id, pages, field, from, to and reason are required."""
+    fixup_id = entry["id"]
+    if not isinstance(fixup_id, str) or not _FIXUP_ID.match(fixup_id):
+        raise AllowlistError(f"invalid fixup id {fixup_id!r}")
+    label = f"fixup:{fixup_id}"
+    unknown_keys = set(entry) - _FIXUP_KEYS
+    if unknown_keys:
+        raise AllowlistError(f"rule {label!r} has unknown keys {sorted(unknown_keys)}")
+    missing = sorted(_FIXUP_KEYS - set(entry))
+    if missing:
+        raise AllowlistError(f"fixup rule {label!r} is missing required keys {missing}")
+    pages = _string_set(entry, "pages", label)
+    if entry["field"] not in MODEL_FIELDS:
+        raise AllowlistError(f"rule {label!r} has unknown field {entry['field']!r}; expected one of {list(MODEL_FIELDS)}")
+    for key in ("from", "to", "reason"):
+        if not isinstance(entry[key], str):
+            raise AllowlistError(f"`{key}` of rule {label!r} must be a string (quote it in YAML)")
+    if not entry["from"] or not entry["reason"] or entry["from"] == entry["to"]:
+        raise AllowlistError(f"rule {label!r} needs a non-empty `from` that differs from `to`, and a non-empty `reason`")
+    return Rule(name=label, pages=pages, reason=entry["reason"], field=entry["field"],
+                replace_from=entry["from"], replace_to=entry["to"])
 
 
 def load_model(path: Path) -> Dict[str, dict]:

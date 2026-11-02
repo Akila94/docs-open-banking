@@ -4,10 +4,13 @@
 # (so the list cannot go stale). Built-in rule names:
 #   placeholder-visible, ol-start, nested-list, list-not-paragraph,
 #   admonition-title-markup, deprecated-banner-page-removed
-# One rule per converter fixup entry:
-#   - name: "fixup:<id>"
+# Built-in entries: `- name: <rule>` with an optional `pages: [...]` restriction and `reason:`.
+#
+# One entry per converter fixup, pinning the exact change (all keys required):
+#   - id: <fixup-id>              # rule name becomes fixup:<fixup-id>
+#     pages: [learn/example/]     # base-relative page paths
+#     field: blocks               # the one model field that changed
+#     from: "old wording"         # Docusaurus value == MkDocs value with `from` replaced by `to` once
+#     to: "new wording"
 #     reason: why the difference is accepted
-#     pages: [learn/example/]      # required for fixups, base-relative page paths
-#     fields: [blocks]             # required for fixups, model fields the fixup may change
-# Built-in rules accept an optional `pages:` list restricting where they apply.
 rules: []
