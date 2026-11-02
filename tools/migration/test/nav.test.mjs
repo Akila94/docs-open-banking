@@ -1,10 +1,11 @@
 /**
- * Tests for parsing the MkDocs `nav:` tree (`parseNav`) and deriving page titles (`navTitles`).
+ * Tests for parsing the MkDocs `nav:` tree (`parseNav`), deriving page titles (`navTitles`) and
+ * generating `sidebars.ts` (`buildSidebarsTs`).
  */
 import {test, describe} from 'node:test';
 import assert from 'node:assert/strict';
 
-import {parseNav, navTitles} from '../lib/nav-sidebars.mjs';
+import {parseNav, navTitles, buildSidebarsTs, navFiles} from '../lib/nav-sidebars.mjs';
 
 const MKDOCS_YML = `site_name: Sample
 theme:
@@ -77,6 +78,81 @@ describe('navTitles', () => {
       'get-started/open-banking.md',
       'get-started/quick-start-guide.md',
       'develop/java/developer-guide.md',
+    ]);
+  });
+});
+
+describe('buildSidebarsTs', () => {
+  const iconSlugs = {'Get Started': 'get-started', Develop: 'develop'};
+  const EXPECTED = `// GENERATED FILE - DO NOT EDIT.
+// Generated from the \`nav:\` of en/mkdocs.yml by tools/migration. Reproduce with:
+//   node tools/migration/convert.mjs --docs en/docs --mkdocs en/mkdocs.yml --fixups tools/migration/fixups/master.json --sidebars sidebars.ts
+import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+
+const sidebars: SidebarsConfig = {
+  docsSidebar: [
+    {
+      type: 'category',
+      label: 'Get Started',
+      className: 'sidebar-section-icon-get-started',
+      collapsed: true,
+      items: [
+        {type: 'doc', id: 'get-started/open-banking', label: 'Open Banking'},
+        {
+          type: 'category',
+          label: 'Quick Start Guide',
+          items: [
+            {type: 'doc', id: 'get-started/quick-start-guide', label: 'Get Started'},
+          ],
+        },
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Develop',
+      className: 'sidebar-section-icon-develop',
+      collapsed: true,
+      items: [
+        {type: 'doc', id: 'develop/java/developer-guide', label: 'Developer Guide'},
+        {
+          type: 'category',
+          label: 'Again',
+          items: [
+            {type: 'ref', id: 'develop/java/developer-guide'},
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+export default sidebars;
+`;
+
+  test('emits the exact typed sidebar, with a ref for the repeated file and no Home/404 entries', () => {
+    assert.equal(buildSidebarsTs(parseNav(MKDOCS_YML), {iconSlugs}), EXPECTED);
+  });
+
+  test('is deterministic', () => {
+    const nav = parseNav(MKDOCS_YML);
+    assert.equal(buildSidebarsTs(nav, {iconSlugs}), buildSidebarsTs(nav, {iconSlugs}));
+  });
+
+  test('fails loudly when a top-level category has no icon slug', () => {
+    assert.throws(() => buildSidebarsTs(parseNav(MKDOCS_YML), {iconSlugs: {'Get Started': 'get-started'}}), /Develop/);
+  });
+
+  test('escapes quotes and backslashes in labels', () => {
+    const nav = [{label: 'Get Started', children: [{label: "It's a \\ path", file: 'a.md'}]}];
+    assert.match(buildSidebarsTs(nav, {iconSlugs}), /label: 'It\\'s a \\\\ path'/);
+  });
+});
+
+describe('navFiles', () => {
+  test('lists every nav file including the 404 page', () => {
+    assert.deepEqual([...navFiles(parseNav(MKDOCS_YML))].sort(), [
+      'develop/java/developer-guide.md', 'get-started/open-banking.md', 'get-started/quick-start-guide.md',
+      'index.md', 'page-not-found.md',
     ]);
   });
 });

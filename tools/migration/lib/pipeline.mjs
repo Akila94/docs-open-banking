@@ -18,6 +18,8 @@ const TABS_IMPORTS = ["import Tabs from '@theme/Tabs';", "import TabItem from '@
 const LINK_IMPORT = "import Link from '@docusaurus/Link';";
 /** Snippet sources become Docusaurus partials, which are not pages: they get no title. */
 const PARTIAL_DIR = 'includes/';
+/** Sidebar (see `sidebars.ts`) shown on pages that are not in the nav. */
+const NON_NAV_SIDEBAR = 'docsSidebar';
 const BANNER_IMPORT = /^import DeprecatedBanner from '[^']+';$/;
 
 /**
@@ -184,7 +186,8 @@ function shiftReport(report, offset) {
  * @param {string} ctx.file Docs-relative path (errors, imports, link resolution).
  * @param {object} [ctx.stats] Receives block-pass author-intent counters.
  * @param {Set<number>} [ctx.fixupLines] 1-based lines of `source` that a fixup produced.
- * @param {{existsFn: Function, titles: Map<string, string>, siteName: string, siteUrl: string, docsDir?: string}} [ctx.site]
+ * @param {{existsFn: Function, titles: Map<string, string>, siteName: string, siteUrl: string, docsDir?: string,
+ *   navFiles?: Set<string>}} [ctx.site]
  *   Site context for stage 2.
  * @returns {{text: string, imports: Set<string>, report: object|null}} Converted file, the
  *   components it imports, and the stage-2 report (lines are lines of the converted file).
@@ -223,7 +226,7 @@ export function convertFile(source, ctx) {
     });
     text = inline.text;
     report = inline.report;
-    finalFrontMatter = withTitle(frontMatter, ctx.file, inline);
+    finalFrontMatter = withTitle(withSidebar(frontMatter, ctx.file, ctx.site.navFiles), ctx.file, inline);
   }
   const importLines = renderImports(imports, ctx.file);
   const leading = /^\n*/.exec(text)[0].length;
@@ -235,6 +238,23 @@ export function convertFile(source, ctx) {
     report = shiftReport(report, bodyOffset);
   }
   return {text: output, imports, report};
+}
+
+/**
+ * Show the nav sidebar on pages outside the nav (MkDocs does; Docusaurus would show none).
+ * Partials (`includes/`) and pages that already set `displayed_sidebar` (the single-column
+ * template maps it to `null`, and converted pages keep their value) are left as they are.
+ *
+ * @param {object|null} frontMatter Mapped front matter.
+ * @param {string} file Docs-relative path.
+ * @param {Set<string>|undefined} navFiles Files listed in the nav; without it the rule is off.
+ * @returns {object|null} Front matter.
+ */
+function withSidebar(frontMatter, file, navFiles) {
+  if (!navFiles || navFiles.has(file) || file.startsWith(PARTIAL_DIR) || Object.hasOwn(frontMatter ?? {}, 'displayed_sidebar')) {
+    return frontMatter;
+  }
+  return {...frontMatter, displayed_sidebar: NON_NAV_SIDEBAR};
 }
 
 /**

@@ -3,12 +3,14 @@
  * MkDocs -> Docusaurus MDX converter CLI.
  *
  *   node tools/migration/convert.mjs --docs en/docs --mkdocs en/mkdocs.yml \
- *     [--fixups tools/migration/fixups/master.json] [--check] [--report <file.json>]
+ *     [--fixups tools/migration/fixups/master.json] [--check] [--report <file.json>] [--sidebars <sidebars.ts>]
  *
  * - Reads every `.md` under `--docs` (sorted, symlinks skipped), applies the fixups (pass 0),
  *   converts each file (block passes, raw HTML -> JSX, inline passes) and writes it back in place.
  * - Every converted file is compiled with `@mdx-js/mdx` (remark-gfm + remark-directive, as
  *   Docusaurus does); the run fails at the first file that does not compile, naming file:line:column.
+ * - `--sidebars` writes the generated `sidebars.ts` (from the `nav:` of `--mkdocs`; skipped by `--check`,
+ *   which instead reports it as changed when the file on disk differs).
  * - `--check` writes nothing and exits 1 if any file would change.
  * - Fixups target the MkDocs sources: omit `--fixups` when re-running on converted output
  *   (for example `--check` after the conversion has been committed).
@@ -29,7 +31,7 @@ import remarkGfm from 'remark-gfm';
 import {applyFixupsWithLines} from './lib/fixups.mjs';
 import {excerpt} from './lib/errors.mjs';
 import {createExistsFn} from './lib/links.mjs';
-import {parseNav, navTitles, navPageLabels, parseSiteSettings} from './lib/nav-sidebars.mjs';
+import {parseNav, navTitles, navPageLabels, navFiles, parseSiteSettings, buildSidebarsTs, SECTION_ICON_SLUGS} from './lib/nav-sidebars.mjs';
 import {convertFile} from './lib/pipeline.mjs';
 
 /**
@@ -75,6 +77,23 @@ function insideDocs(docsRoot, relative) {
     throw new Error(`refusing to touch a path outside the docs directory: ${relative}`);
   }
   return absolute;
+}
+
+/**
+ * Read a text file, or null when it does not exist.
+ *
+ * @param {string} file Path.
+ * @returns {string|null} Content or null.
+ */
+function readTextIfExists(file) {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -130,11 +149,12 @@ export async function main(argv) {
       fixups: {type: 'string'},
       check: {type: 'boolean', default: false},
       report: {type: 'string'},
+      sidebars: {type: 'string'},
     },
     strict: true,
   });
   if (!values.docs || !values.mkdocs) {
-    console.error('usage: convert.mjs --docs <dir> --mkdocs <mkdocs.yml> [--fixups <file.json>] [--check] [--report <file.json>]');
+    console.error('usage: convert.mjs --docs <dir> --mkdocs <mkdocs.yml> [--fixups <file.json>] [--check] [--report <file.json>] [--sidebars <sidebars.ts>]');
     return 2;
   }
   const docsRoot = path.resolve(values.docs);
@@ -144,6 +164,7 @@ export async function main(argv) {
   const site = {
     ...parseSiteSettings(mkdocsYml),
     titles: navPageLabels(nav),
+    navFiles: navFiles(nav),
     docsDir: docsRoot,
     existsFn: createExistsFn(docsRoot),
   };
@@ -173,9 +194,14 @@ export async function main(argv) {
     console.error(`convert: MDX compile failed: ${compileFailure}`);
     return 2;
   }
+  const sidebarsTs = buildSidebarsTs(nav, {iconSlugs: SECTION_ICON_SLUGS});
+  const sidebarsChanged = values.sidebars !== undefined && readTextIfExists(values.sidebars) !== sidebarsTs;
   if (!values.check) {
     for (const file of changed) {
       writeFileSync(insideDocs(docsRoot, file), outputs.get(file), 'utf8');
+    }
+    if (sidebarsChanged) {
+      writeFileSync(values.sidebars, sidebarsTs, 'utf8');
     }
   }
   if (values.report) {
@@ -194,8 +220,11 @@ export async function main(argv) {
     for (const file of changed) {
       console.error(`would change: ${file}`);
     }
-    console.error(`convert --check: ${changed.length} file(s) would change`);
-    return changed.length > 0 ? 1 : 0;
+    if (sidebarsChanged) {
+      console.error(`would change: ${values.sidebars}`);
+    }
+    console.error(`convert --check: ${changed.length + (sidebarsChanged ? 1 : 0)} file(s) would change`);
+    return changed.length > 0 || sidebarsChanged ? 1 : 0;
   }
   console.error(`convert: ${outputs.size} file(s) compile as MDX; ${changed.length} file(s) written`);
   return 0;

@@ -1,5 +1,5 @@
 /**
- * MkDocs `nav:` parsing. The sidebar generator (`buildSidebarsTs`) is added by a later task.
+ * MkDocs `nav:` parsing and the Docusaurus `sidebars.ts` generator (`buildSidebarsTs`).
  *
  * Only the `nav:` subtree of `mkdocs.yml` is parsed. js-yaml is used with its safe default schema
  * plus an inert handler for `!!python/name:` tags (as in `emoji_generator`), which are kept as
@@ -157,4 +157,123 @@ export function parseSiteSettings(mkdocsYml) {
     throw new Error('mkdocs.yml site_url must be an http(s) URL');
   }
   return {siteName: scalar('site_name'), siteUrl: parsed.href.endsWith('/') ? parsed.href : `${parsed.href}/`};
+}
+
+/** Top-level nav section -> CSS icon slug (`sidebar-section-icon-<slug>`), for this site's nav. */
+export const SECTION_ICON_SLUGS = {
+  'Get Started': 'get-started',
+  'Install and Setup': 'install-and-setup',
+  'Tryout Flows': 'tryout-flows',
+  Learn: 'learn',
+  Develop: 'develop',
+  References: 'references',
+};
+
+/** Nav pages that belong to the site chrome, not to the sidebar. */
+const SIDEBAR_EXCLUDED_FILES = new Set(['index.md', 'page-not-found.md']);
+
+/** Reproduction command written into the header of the generated file. */
+const SIDEBARS_REPRODUCE_COMMAND = 'node tools/migration/convert.mjs --docs en/docs --mkdocs en/mkdocs.yml '
+  + '--fixups tools/migration/fixups/master.json --sidebars sidebars.ts';
+
+/**
+ * Render a string as a single-quoted TypeScript literal.
+ *
+ * @param {string} value Text.
+ * @returns {string} Quoted literal with backslashes, quotes and line breaks escaped.
+ */
+function tsString(value) {
+  const escaped = value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+  return `'${escaped}'`;
+}
+
+/**
+ * Convert NavNodes to rendered sidebar item lines.
+ *
+ * @param {NavNode[]} nodes Nav entries.
+ * @param {{iconSlugs: Record<string, string>, seen: Set<string>, depth: number}} state Slugs, the
+ *   doc ids already emitted (a repeat becomes a `ref`) and the nesting depth (0 = top level).
+ * @returns {string[]} Lines (without the surrounding brackets), indented for `depth`.
+ * @throws {Error} When a top-level category has no icon slug.
+ */
+function renderItems(nodes, state) {
+  const pad = ' '.repeat(4 + 4 * state.depth);
+  const lines = [];
+  for (const node of nodes) {
+    if (node.file !== undefined) {
+      if (SIDEBAR_EXCLUDED_FILES.has(node.file)) {
+        continue;
+      }
+      const id = node.file.replace(/\.md$/, '');
+      if (state.seen.has(id)) {
+        lines.push(`${pad}{type: 'ref', id: ${tsString(id)}},`);
+      } else {
+        state.seen.add(id);
+        lines.push(`${pad}{type: 'doc', id: ${tsString(id)}, label: ${tsString(node.label)}},`);
+      }
+      continue;
+    }
+    const top = state.depth === 0;
+    const slug = state.iconSlugs[node.label];
+    if (top && !Object.hasOwn(state.iconSlugs, node.label)) {
+      throw new Error(`no sidebar icon slug for top-level section: ${node.label}`);
+    }
+    const children = renderItems(node.children, {...state, depth: state.depth + 1});
+    lines.push(
+      `${pad}{`,
+      `${pad}  type: 'category',`,
+      `${pad}  label: ${tsString(node.label)},`,
+      ...(top ? [`${pad}  className: ${tsString(`sidebar-section-icon-${slug}`)},`, `${pad}  collapsed: true,`] : []),
+      `${pad}  items: [`,
+      ...children,
+      `${pad}  ],`,
+      `${pad}},`,
+    );
+  }
+  return lines;
+}
+
+/**
+ * Generate `sidebars.ts` from the nav: one `docsSidebar`, doc ids are docs-relative paths without
+ * `.md`, a file listed twice becomes a `ref` after its first occurrence, and `index.md` and
+ * `page-not-found.md` are left out.
+ *
+ * @param {NavNode[]} nav Parsed nav.
+ * @param {{iconSlugs: Record<string, string>}} options Top-level section label -> icon slug.
+ * @returns {string} TypeScript source (deterministic, 2-space indent, single quotes).
+ * @throws {Error} When a top-level category has no icon slug.
+ */
+export function buildSidebarsTs(nav, {iconSlugs}) {
+  const items = renderItems(nav, {iconSlugs, seen: new Set(), depth: 0});
+  return [
+    '// GENERATED FILE - DO NOT EDIT.',
+    '// Generated from the `nav:` of en/mkdocs.yml by tools/migration. Reproduce with:',
+    `//   ${SIDEBARS_REPRODUCE_COMMAND}`,
+    "import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';",
+    '',
+    'const sidebars: SidebarsConfig = {',
+    '  docsSidebar: [',
+    ...items,
+    '  ],',
+    '};',
+    '',
+    'export default sidebars;',
+    '',
+  ].join('\n');
+}
+
+/**
+ * Docs-relative files listed in the nav (any label, including empty ones).
+ *
+ * @param {NavNode[]} nav Parsed nav.
+ * @returns {Set<string>} Files.
+ */
+export function navFiles(nav) {
+  return new Set(navPageLabels(nav).keys());
 }

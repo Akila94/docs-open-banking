@@ -5,6 +5,7 @@
  * Every directory under `test/fixtures-inline/` holds `input.md` (MkDocs source), a hand-written
  * `expected.md` and `ctx.json`:
  *   {"file": "<docs-relative path>", "nav": {"<file>": "<label>"}, "files": [...], "staticFiles": [...],
+ *    "navFiles": [...] (optional: enables `displayed_sidebar` for pages outside it),
  *    "report": {"brokenLinks": [{line, href}], "missingImages": [{line, src}]}}
  * `files`/`staticFiles` are the docs-relative paths that exist (the page itself is always added).
  * For each fixture the full conversion must equal `expected.md`, `expected.md` must compile as
@@ -43,6 +44,7 @@ function siteContext(fixtureCtx) {
     titles: new Map(Object.entries(fixtureCtx.nav ?? {})),
     siteName: SITE_NAME,
     siteUrl: SITE_URL,
+    ...(fixtureCtx.navFiles ? {navFiles: new Set(fixtureCtx.navFiles)} : {}),
   };
 }
 
