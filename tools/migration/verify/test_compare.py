@@ -1,0 +1,273 @@
+"""Tests for compare.py: differences pass only when explained by a listed, actually used allowlist rule."""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+import compare
+
+HERE = Path(__file__).resolve().parent
+PAGE_PATH = "learn/sample/"
+
+
+def make_page(path=PAGE_PATH, **overrides):
+    """A minimal valid page model with the given fields overridden."""
+    page = {
+        "path": path, "title": "T", "headings": [[1, "T", ""]], "blocks": [], "code": [], "tables": [],
+        "lists": [], "admonitions": [], "images": [], "links": [], "tabs": [],
+    }
+    page.update(overrides)
+    return page
+
+
+def ordered_list(items, start=1, depth=0):
+    """A list model entry for an ordered list."""
+    return {"ordered": True, "start": start, "depth": depth, "items": items}
+
+
+def run(mk_pages, docu_pages, *rule_names, **rule_options):
+    """Compare two page sets under the given rule names."""
+    rules = [compare.Rule(name=name, **rule_options) for name in rule_names]
+    return compare.compare_models(
+        {page["path"]: page for page in mk_pages}, {page["path"]: page for page in docu_pages}, rules
+    )
+
+
+# ----------------------------------------------------------- core behaviour
+
+
+def test_identical_models_pass_without_rules():
+    result = run([make_page(blocks=["a"])], [make_page(blocks=["a"])])
+    assert result.passed
+    assert result.identical_pages == 1
+
+
+def test_unlisted_difference_fails_and_is_reported_per_page_and_field():
+    result = run([make_page(blocks=["a"])], [make_page(blocks=["b"])])
+    assert not result.passed
+    assert [(diff.path, diff.field) for diff in result.unexplained] == [(PAGE_PATH, "blocks")]
+
+
+def test_page_missing_from_either_side_fails():
+    only_mkdocs = run([make_page(), make_page("gone/")], [make_page()])
+    only_docusaurus = run([make_page()], [make_page(), make_page("extra/")])
+    assert not only_mkdocs.passed and not only_docusaurus.passed
+    assert only_mkdocs.unexplained[0].field == "(page)"
+
+
+# --------------------------------------------------------------- ol-start
+
+
+def test_ol_start_difference_passes_only_when_rule_is_listed():
+    mkdocs = [make_page(lists=[ordered_list(["a", "b"], start=1)])]
+    docusaurus = [make_page(lists=[ordered_list(["a", "b"], start=3)])]
+
+    assert not run(mkdocs, docusaurus).passed
+    listed = run(mkdocs, docusaurus, "ol-start")
+    assert listed.passed
+    assert listed.rule_counts == {"ol-start": 1}
+
+
+def test_ol_start_does_not_excuse_other_list_changes():
+    mkdocs = [make_page(lists=[ordered_list(["a"], start=1)])]
+    docusaurus = [make_page(lists=[ordered_list(["a", "extra"], start=3)])]
+    assert not run(mkdocs, docusaurus, "ol-start").passed
+
+
+def test_listed_rule_that_explains_nothing_fails_as_unused():
+    result = run([make_page()], [make_page()], "ol-start")
+    assert not result.passed
+    assert result.unused_rules == ["ol-start"]
+
+
+# ------------------------------------------------------------ nested-list
+
+
+def test_nested_list_same_items_different_depth():
+    mkdocs = [make_page(lists=[ordered_list(["a", "b"], depth=0)])]
+    docusaurus = [make_page(lists=[ordered_list(["a", "b"], depth=1)])]
+    assert not run(mkdocs, docusaurus).passed
+    assert run(mkdocs, docusaurus, "nested-list").passed
+    assert not run(
+        mkdocs, [make_page(lists=[ordered_list(["a", "c"], depth=1)])], "nested-list"
+    ).passed
+
+
+# ----------------------------------------------------- list-not-paragraph
+
+
+def test_paragraph_that_became_a_list_with_same_text():
+    mkdocs = [make_page(blocks=["Prerequisites: - java - maven"])]
+    docusaurus = [make_page(
+        blocks=["Prerequisites:"],
+        lists=[{"ordered": False, "start": None, "depth": 0, "items": ["java", "maven"]}],
+    )]
+    assert not run(mkdocs, docusaurus).passed
+    assert run(mkdocs, docusaurus, "list-not-paragraph").passed
+
+
+def test_list_not_paragraph_rejects_changed_text():
+    mkdocs = [make_page(blocks=["Prerequisites: - java - maven"])]
+    docusaurus = [make_page(
+        blocks=["Prerequisites:"],
+        lists=[{"ordered": False, "start": None, "depth": 0, "items": ["java", "gradle"]}],
+    )]
+    assert not run(mkdocs, docusaurus, "list-not-paragraph").passed
+
+
+# ------------------------------------------------- admonition-title-markup
+
+
+def test_admonition_titles_differing_only_by_markup():
+    def admonition(title):
+        return {"kind": "details", "type": "tip", "title": title, "open": False}
+
+    mkdocs = [make_page(admonitions=[admonition("click `obevent` and **more**")])]
+    docusaurus = [make_page(admonitions=[admonition("click obevent and more")])]
+    assert not run(mkdocs, docusaurus).passed
+    assert run(mkdocs, docusaurus, "admonition-title-markup").passed
+    other = [make_page(admonitions=[admonition("something else")])]
+    assert not run(mkdocs, other, "admonition-title-markup").passed
+
+
+# ------------------------------------------------------ placeholder-visible
+
+
+def test_placeholder_tokens_visible_only_in_docusaurus():
+    mkdocs = [make_page(
+        blocks=["Go to /repository now"],
+        tables=[[["Path"], ["/conf"]]],
+    )]
+    docusaurus = [make_page(
+        blocks=["Go to <APIM_HOME>/repository now"],
+        tables=[[["Path"], ["<IS_HOME>/conf"]]],
+    )]
+    assert not run(mkdocs, docusaurus).passed
+    assert run(mkdocs, docusaurus, "placeholder-visible").passed
+
+
+def test_placeholder_rule_does_not_hide_real_text_changes_or_code():
+    mkdocs = [make_page(blocks=["Go to /repository"], code=["a <X> b"])]
+    assert not run(mkdocs, [make_page(blocks=["Go to <X>/other"], code=["a <X> b"])], "placeholder-visible").passed
+    assert not run(mkdocs, [make_page(blocks=["Go to /repository"], code=["a b"])], "placeholder-visible").passed
+
+
+# ------------------------------------------- deprecated-banner-page-removed
+
+
+def test_deprecated_banner_page_may_be_absent_only_when_listed():
+    banner = make_page("includes/deprecated-banner/")
+    assert not run([make_page(), banner], [make_page()]).passed
+    assert run([make_page(), banner], [make_page()], "deprecated-banner-page-removed").passed
+    other = make_page("includes/other/")
+    assert not run([make_page(), other], [make_page()], "deprecated-banner-page-removed").passed
+
+
+# ------------------------------------------------------------------ fixups
+
+
+def test_fixup_rule_explains_only_declared_pages_and_fields():
+    mkdocs = [make_page(blocks=["a"]), make_page("other/", blocks=["a"])]
+    docusaurus = [make_page(blocks=["b"]), make_page("other/", blocks=["b"])]
+    scoped = compare.Rule(name="fixup:typo-1", pages=frozenset({PAGE_PATH}), fields=frozenset({"blocks"}))
+    result = compare.compare_models(
+        {page["path"]: page for page in mkdocs}, {page["path"]: page for page in docusaurus}, [scoped]
+    )
+    assert [diff.path for diff in result.unexplained] == ["other/"]
+    assert result.rule_counts == {"fixup:typo-1": 1}
+
+
+# ------------------------------------------------------- allowlist loading
+
+
+def write_yaml(tmp_path, text):
+    """Write an allowlist file and return its path."""
+    path = tmp_path / "allow.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_master_allowlist_is_valid_and_empty():
+    assert compare.load_rules(HERE / "expected-diffs.master.yaml") == []
+
+
+def test_load_rules_reads_names_and_fixup_scopes(tmp_path):
+    rules = compare.load_rules(write_yaml(tmp_path, """
+rules:
+  - name: ol-start
+  - name: "fixup:one"
+    reason: typo corrected in source
+    pages: [learn/sample/]
+    fields: [blocks]
+"""))
+    assert [rule.name for rule in rules] == ["ol-start", "fixup:one"]
+    assert rules[1].pages == frozenset({"learn/sample/"}) and rules[1].fields == frozenset({"blocks"})
+
+
+@pytest.mark.parametrize("text", [
+    "rules:\n  - name: made-up-rule\n",
+    "rules:\n  - name: ol-start\n  - name: ol-start\n",
+    "rules:\n  - name: 'fixup:x'\n",
+    "rules:\n  - name: 'fixup:x'\n    pages: [a/]\n    fields: [nonsense]\n",
+    "rules:\n  - name: ol-start\n    surprise: 1\n",
+    "rules: not-a-list\n",
+    "- just-a-list\n",
+    "rules: [\n",
+])
+def test_load_rules_rejects_invalid_files(tmp_path, text):
+    with pytest.raises(compare.AllowlistError):
+        compare.load_rules(write_yaml(tmp_path, text))
+
+
+def test_load_rules_does_not_execute_yaml_tags(tmp_path):
+    with pytest.raises(compare.AllowlistError):
+        compare.load_rules(write_yaml(tmp_path, "rules: !!python/object/apply:os.system ['echo hi']\n"))
+
+
+# --------------------------------------------------------------------- CLI
+
+
+def write_jsonl(path, pages):
+    """Write page models as JSON Lines."""
+    path.write_text("".join(json.dumps(page) + "\n" for page in pages), encoding="utf-8")
+    return path
+
+
+def test_cli_exit_codes_and_report(tmp_path):
+    mkdocs = write_jsonl(tmp_path / "mk.jsonl", [make_page(lists=[ordered_list(["a"], start=1)])])
+    docusaurus = write_jsonl(tmp_path / "docu.jsonl", [make_page(lists=[ordered_list(["a"], start=3)])])
+    without_rule = write_yaml(tmp_path, "rules: []\n")
+    report = tmp_path / "out" / "report.md"
+
+    assert compare.main([str(mkdocs), str(docusaurus), "--allow", str(without_rule), "--report", str(report)]) == 1
+    text = report.read_text(encoding="utf-8")
+    assert PAGE_PATH in text and "lists" in text
+
+    with_rule = tmp_path / "with.yaml"
+    with_rule.write_text("rules:\n  - name: ol-start\n", encoding="utf-8")
+    assert compare.main([str(mkdocs), str(docusaurus), "--allow", str(with_rule), "--report", str(report)]) == 0
+    assert "ol-start" in report.read_text(encoding="utf-8")
+
+
+def test_cli_returns_usage_error_for_bad_inputs(tmp_path):
+    mkdocs = write_jsonl(tmp_path / "mk.jsonl", [make_page()])
+    broken = tmp_path / "broken.jsonl"
+    broken.write_text("{not json}\n", encoding="utf-8")
+    allow = write_yaml(tmp_path, "rules: []\n")
+    report = tmp_path / "r.md"
+    assert compare.main([str(mkdocs), str(broken), "--allow", str(allow), "--report", str(report)]) == 2
+    assert compare.main([str(mkdocs), str(tmp_path / "missing.jsonl"), "--allow", str(allow), "--report", str(report)]) == 2
+
+
+def test_script_runs_isolated_from_the_command_line(tmp_path):
+    mkdocs = write_jsonl(tmp_path / "mk.jsonl", [make_page()])
+    docusaurus = write_jsonl(tmp_path / "docu.jsonl", [make_page()])
+    completed = subprocess.run(
+        [sys.executable, "-I", str(HERE / "compare.py"), str(mkdocs), str(docusaurus),
+         "--allow", str(HERE / "expected-diffs.master.yaml"), "--report", str(tmp_path / "report.md")],
+        capture_output=True, text=True,
+    )
+    assert completed.returncode == 0, completed.stderr

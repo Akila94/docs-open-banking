@@ -1,0 +1,13 @@
+# Allowlist of accepted MkDocs-vs-Docusaurus content differences (see compare.py).
+#
+# Every listed rule must explain at least one difference, otherwise compare.py fails
+# (so the list cannot go stale). Built-in rule names:
+#   placeholder-visible, ol-start, nested-list, list-not-paragraph,
+#   admonition-title-markup, deprecated-banner-page-removed
+# One rule per converter fixup entry:
+#   - name: "fixup:<id>"
+#     reason: why the difference is accepted
+#     pages: [learn/example/]      # required for fixups, base-relative page paths
+#     fields: [blocks]             # required for fixups, model fields the fixup may change
+# Built-in rules accept an optional `pages:` list restricting where they apply.
+rules: []
