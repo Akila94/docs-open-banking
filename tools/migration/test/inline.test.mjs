@@ -162,7 +162,7 @@ describe('htmlToJsx output', () => {
     ];
     for (const sample of samples) {
       const once = htmlToJsx(sample, {file: 'page.md', allowOnclick: false});
-      assert.equal(htmlToJsx(once, {file: 'page.md', allowOnclick: false}), once);
+      assert.equal(htmlToJsx(once, {file: 'page.md', allowOnclick: false, converted: true}), once);
     }
   });
 });
@@ -275,5 +275,43 @@ describe('corpus regressions: converting converted output is a no-op', () => {
     // As in the IS catalog: `<span>Possible Values: ⏎ <code>…</code> ⏎ </span>`.
     const once = await assertStable('<div class="x">\n    <span class="v">Possible Values: \n        <code>&quot;a&quot;</code>\n    </span>\n</div>\n');
     assert.match(once, /<span className="v">\n {8}\{"Possible Values:"\}\{" "\}\n {8}<code>"a"<\/code>\n {4}<\/span>/);
+  });
+});
+
+describe('the converter\'s own JSX forms in MkDocs sources (first run)', () => {
+  /**
+   * Assert that first-run HTML containing an own JSX form is rejected at `page.md:<line>`.
+   *
+   * @param {() => unknown} action Conversion.
+   * @param {number} line Expected file line.
+   */
+  function assertRejectedAt(action, line) {
+    assert.throws(action, (error) => error instanceof ConversionError && error.message.startsWith(`page.md:${line}:`));
+  }
+
+  test('{"x"} inside a source <pre> is rejected with file:line, not rewritten', () => {
+    assertRejectedAt(() => htmlToJsx('<pre><code>a = 1\nheaders = {"x"}\n</code></pre>', {file: 'page.md', allowOnclick: false, line: 10}), 11);
+  });
+
+  test('{"a"} and {`b`} in table cells are rejected', () => {
+    assertRejectedAt(() => htmlToJsx('<table><tr><td>{"a"}</td></tr></table>', {file: 'page.md', allowOnclick: false, line: 3}), 3);
+    assertRejectedAt(() => htmlToJsx('<table><tr><td>{`b`}</td></tr></table>', {file: 'page.md', allowOnclick: false, line: 3}), 3);
+  });
+
+  test('{/* x */} in a raw HTML block is rejected (it is visible text in MkDocs)', () => {
+    const source = 'Intro.\n\n<div>\n  <p>{/* x */}</p>\n</div>\n';
+    assertRejectedAt(() => convertFile(source, {file: 'page.md', site: siteContext({file: 'page.md'})}), 4);
+  });
+
+  test('style={{…}} in a source tag is rejected, in raw blocks and inline', () => {
+    assertRejectedAt(() => htmlToJsx('<div style={{color: "red"}}>a</div>', {file: 'page.md', allowOnclick: false, line: 2}), 2);
+    assertRejectedAt(() => convertFile('Text <span style={{color: "red"}}>a</span> end.\n', {file: 'page.md', site: siteContext({file: 'page.md'})}), 1);
+  });
+
+  test('converted input is still reversed, so converting twice is stable', () => {
+    const once = htmlToJsx('<td>\n  x {y} `z`\n</td>', {file: 'page.md', allowOnclick: false});
+    assert.match(once, /\{"x \{y\} `z`"\}/);
+    assert.equal(htmlToJsx(once, {file: 'page.md', allowOnclick: false, converted: true}), once);
+    assert.throws(() => htmlToJsx(once, {file: 'page.md', allowOnclick: false}), ConversionError);
   });
 });

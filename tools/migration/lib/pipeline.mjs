@@ -128,10 +128,10 @@ function mapFrontMatter(data, source, file) {
  *
  * @param {string} body Block passes' output.
  * @param {Array<{kind: string, start: number, end: number, sourceLine: number}>} regions Output line ranges.
- * @param {object} options `file`, `policy`, `imports` (receives `Link`).
+ * @param {object} options `file`, `policy`, `imports` (receives `Link`), `converted` (already-converted file).
  * @returns {{text: string, masks: Array<{start: number, end: number}>, rawHasH1: boolean}} Result.
  */
-function convertRawRegions(body, regions, {file, policy, imports}) {
+function convertRawRegions(body, regions, {file, policy, imports, converted}) {
   const lines = body.split('\n');
   const out = [];
   const maskedLines = [];
@@ -143,7 +143,7 @@ function convertRawRegions(body, regions, {file, policy, imports}) {
     if (region.kind === 'html') {
       const html = block.join('\n');
       rawHasH1 ||= html.includes('<h1');
-      block = htmlToJsx(html, {...policy, file, line: region.sourceLine, imports}).split('\n');
+      block = htmlToJsx(html, {...policy, file, line: region.sourceLine, imports, converted}).split('\n');
     }
     maskedLines.push([out.length, out.length + block.length - 1]);
     out.push(...block);
@@ -208,12 +208,15 @@ export function convertFile(source, ctx) {
   let report = null;
   if (ctx.site) {
     const policy = pagePolicy(ctx.file, frontMatter);
-    const raw = convertRawRegions(text, converted.regions, {file: ctx.file, policy, imports});
+    // Converted pages always carry `title:`; MkDocs sources never do (see `withTitle`).
+    const alreadyConverted = Object.hasOwn(data ?? {}, 'title');
+    const raw = convertRawRegions(text, converted.regions, {file: ctx.file, policy, imports, converted: alreadyConverted});
     const inline = convertInline(raw.text, {
       ...ctx.site,
       file: ctx.file,
       masks: raw.masks,
       policy,
+      converted: alreadyConverted,
       originalBody: rest,
       mkdocsShowsTitle: !String(data?.template ?? '').endsWith('redoc.html') && !raw.rawHasH1,
       lineOffset: frontMatterLines,

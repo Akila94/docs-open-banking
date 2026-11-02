@@ -17,7 +17,7 @@ import {ConversionError, excerpt} from './errors.mjs';
 import {mdxCommentText} from './mdx-comment.mjs';
 import {assertSafeUrl} from './links.mjs';
 import {AttributeError, attributeMap, convertAttributes} from './html/attributes.mjs';
-import {normalizeOwnJsx} from './html/own-jsx.mjs';
+import {findOwnJsxForm, normalizeOwnJsx} from './html/own-jsx.mjs';
 import {
   BLOCK_ELEMENTS, HTML_ELEMENTS, RAW_TEXT_ELEMENTS, VOID_ELEMENTS, elementViolation,
 } from './html/policy.mjs';
@@ -41,6 +41,9 @@ const TRAILING_SPACE = /[ \t\n\f\r]*$/;
  * @property {Set<string>} [customElements] Non-HTML elements to keep (`redoc`).
  * @property {number} [line] 1-based file line of the HTML's first line (errors).
  * @property {Set<string>} [imports] Receives `Link` when a card is converted.
+ * @property {boolean} [converted] The file was already converted (its front matter has `title:`):
+ *   read the converter's own JSX forms back. Otherwise the input is MkDocs source, where those
+ *   forms are rejected.
  */
 
 /**
@@ -62,6 +65,28 @@ function createContext(opts) {
     },
     imports: opts.imports ?? new Set(),
   };
+}
+
+/**
+ * Prepare HTML for parse5: on converted input, map the converter's own JSX forms back to HTML; on
+ * MkDocs source, refuse them (they would be real content there, and rewriting it is not allowed).
+ *
+ * @param {string} html Raw HTML.
+ * @param {HtmlOptions} opts Options (`converted`, `file`, `line`).
+ * @returns {string} HTML for parse5.
+ * @throws {ConversionError} At the line of an own JSX form in source HTML.
+ */
+function prepareHtml(html, opts) {
+  if (opts.converted === true) {
+    return normalizeOwnJsx(html);
+  }
+  const found = findOwnJsxForm(html);
+  if (found !== null) {
+    const line = (opts.line ?? 1) + (html.slice(0, found.offset).match(/\n/g) ?? []).length;
+    throw new ConversionError(opts.file, line,
+      `raw HTML contains ${found.form}, which is the converter's own JSX syntax; MkDocs shows it as text, so it cannot be converted safely (fix the source with a fixup)`);
+  }
+  return html;
 }
 
 /**
@@ -334,7 +359,7 @@ class JsxSerializer {
  */
 export function htmlToJsx(html, opts) {
   const context = createContext(opts);
-  const source = normalizeOwnJsx(html);
+  const source = prepareHtml(html, opts);
   const fragment = parseFragment(source, {sourceCodeLocationInfo: true});
   hoistPlaceholders(fragment, source, context);
   return new JsxSerializer(context).children(fragment, {raw: false, inline: false, onStartLine: false});
@@ -375,7 +400,7 @@ function tokenize(source) {
  */
 export function convertInlineTag(value, opts) {
   const context = createContext(opts);
-  const tokens = tokenize(normalizeOwnJsx(value));
+  const tokens = tokenize(prepareHtml(value, opts));
   const tag = tokens.length === 1 ? tokens[0] : null;
   const isTag = tag !== null && (tag.type === Token.TokenType.START_TAG || tag.type === Token.TokenType.END_TAG);
   if (!isTag) {

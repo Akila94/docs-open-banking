@@ -254,7 +254,7 @@ class InlineConverter {
       if (value.startsWith('<!--')) {
         this.fail(node, 'an HTML comment inside Markdown text is not supported');
       }
-      const tag = convertInlineTag(value, {...this.ctx.policy, file: this.ctx.file, line: this.line(node)});
+      const tag = convertInlineTag(value, {...this.ctx.policy, converted: this.ctx.converted === true, file: this.ctx.file, line: this.line(node)});
       if (tag.kind === 'placeholder') {
         this.report.placeholders.push({line: this.line(node)});
         this.edit(node.position.start.offset, node.position.start.offset, '\\');
@@ -334,6 +334,7 @@ function destination(url, angle) {
  * @param {string} ctx.siteUrl MkDocs `site_url`.
  * @param {Array<{start: number, end: number}>} [ctx.masks] Character ranges already converted.
  * @param {object} [ctx.policy] HTML policy for the page.
+ * @param {boolean} [ctx.converted] The file was already converted (see `HtmlOptions.converted`).
  * @param {string} [ctx.originalBody] The MkDocs source body (for the title).
  * @param {boolean} [ctx.mkdocsShowsTitle] Whether Material would render a synthetic h1.
  * @param {number} [ctx.lineOffset] Lines before the body in the converted file.

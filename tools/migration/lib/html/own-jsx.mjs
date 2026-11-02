@@ -6,8 +6,9 @@
  *   `{"text"}` and `` {`text`} `` -> (escaped) text      `{/* c *\/}` -> `<!-- c -->`
  *   `style={{a: "b"}}`              -> `style="a: b"`     `name={"v"}`  -> `name="v"`
  *   `<Link to="X" …>` … `</Link>`   -> `<div … onclick="location.href='X';">` … `</div>`
- * MkDocs sources contain none of these forms, so on a first run this is the identity. It only
- * locates the converter's constructs; the HTML itself is parsed by parse5.
+ * The reversal is only applied to files the converter already converted. In MkDocs sources these
+ * forms are real content (code text, visible text), so `findOwnJsxForm` locates them and the
+ * converter refuses such input instead of rewriting it. Neither function parses HTML; parse5 does.
  */
 import {decodeTemplateBody, escapeHtmlAttribute, escapeHtmlText} from './text.mjs';
 import {mdxCommentContent} from '../mdx-comment.mjs';
@@ -216,4 +217,46 @@ export function normalizeOwnJsx(text) {
     index += 1;
   }
   return out;
+}
+
+/**
+ * Locate the first of the converter's own JSX forms in MkDocs source HTML.
+ *
+ * @param {string} text Raw HTML block or tag from a source that has not been converted.
+ * @returns {{offset: number, form: string}|null} Where it is and which form, or null.
+ */
+export function findOwnJsxForm(text) {
+  let index = 0;
+  while (index < text.length) {
+    if (text.startsWith('<!--', index)) {
+      const close = text.indexOf('-->', index + 4);
+      index = close === -1 ? text.length : close + 3;
+      continue;
+    }
+    const char = text[index];
+    if (char === '<' && /[A-Za-z/]/.test(text[index + 1] ?? '')) {
+      const end = scanTag(text, index);
+      if (end !== -1) {
+        const tag = text.slice(index, end);
+        const style = STYLE_OBJECT.exec(tag);
+        JSON_ATTRIBUTE.lastIndex = 0;
+        const attribute = JSON_ATTRIBUTE.exec(tag);
+        const found = [style, attribute].filter(Boolean).sort((a, b) => a.index - b.index)[0];
+        if (found) {
+          return {offset: index + found.index + 1, form: found === style ? 'style={{…}}' : 'attribute={"…"}'};
+        }
+        index = end;
+        continue;
+      }
+    }
+    if (char === '{') {
+      const expression = readOwnExpression(text, index);
+      if (expression !== null) {
+        const form = text.startsWith('{/*', index) ? '{/* … */}' : `{${text[index + 1]}…${text[index + 1]}}`;
+        return {offset: index, form};
+      }
+    }
+    index += 1;
+  }
+  return null;
 }
