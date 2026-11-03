@@ -1,6 +1,6 @@
 /**
  * Tests for parseVersions, using the real versions.json published on the `versions` branch.
- * Run with: node --test src/theme/NavbarItem/ObVersionDropdown/
+ * Run with: node --test "src/theme/NavbarItem/ObVersionDropdown/*.test.mjs" (Node 22 needs the glob, not a directory)
  */
 import {test, describe} from 'node:test';
 import assert from 'node:assert/strict';
