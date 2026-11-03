@@ -40,7 +40,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -62,6 +62,9 @@ jobs:
           path: build
           if-no-files-found: error
           retention-days: 1
+
+  # Artifact actions: upload-artifact and download-artifact are both pinned to the v7 major (v4+
+  # artifact backend), so the pair is on the same major.
 
   # Why one deploy job and not one publish step per matrix leg:
   #  - Dependencies (npm ci runs third-party install scripts) are installed only in the read-only
@@ -86,13 +89,13 @@ jobs:
           persist-credentials: false
 
       - name: Download latest build
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: site-latest
           path: site/latest
 
       - name: Download 4.0.0 build
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: site-4.0.0
           path: site/4.0.0

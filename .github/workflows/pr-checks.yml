@@ -22,15 +22,26 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            tools/migration/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
+      # The converter tests import tools/migration's own pinned devDependencies, which the root
+      # install does not provide.
+      - name: Install converter dependencies
+        run: npm ci --prefix tools/migration
+
       - name: Security audit
         run: npm run audit
+
+      # The converter is a dev-only tool but its tests run here, so audit its pinned tree too.
+      - name: Security audit (converter)
+        run: npm audit --prefix tools/migration --audit-level=high
 
       - name: Type check
         run: npm run typecheck
