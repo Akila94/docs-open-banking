@@ -306,5 +306,33 @@
     "find": "             `setHeaders()` - Can be used to set custom headers in SMS service request.\n             `getPayload()` - Can use to send custom payload via an SMS or to customise the SMS service request.",
     "replace": "                 `setHeaders()` - Can be used to set custom headers in SMS service request.\n                 `getPayload()` - Can use to send custom payload via an SMS or to customise the SMS service request.",
     "reason": "Lines 295-296: after the nested-list rule nests line 293 one level deeper, the over-indented method lines would lose 4 leading spaces of code text; +4 keeps the code text identical to MkDocs."
+  },
+  {
+    "id": "consent-rest-api-redoc-component",
+    "file": "references/consent-rest-api.md",
+    "find": "<redoc spec-url=\"../../internal-apis/consent-internal.yaml\"></redoc>\n<script src=\"../../assets/lib/redoc/redoc.standalone.js\"> </script>",
+    "replace": "import RedocSpec from '@site/src/components/RedocSpec';\n\n<RedocSpec specPath=\"/internal-apis/consent-internal.yaml\" />",
+    "reason": "MkDocs loads the Redoc <redoc> custom element and a script tag from assets/lib/redoc. Docusaurus cannot run page scripts, so the page renders the same spec with the self-hosted, pinned Redoc bundle through the RedocSpec component (Ruling 21)."
+  },
+  {
+    "id": "dcr-rest-api-redoc-component",
+    "file": "references/dcr-rest-api.md",
+    "find": "<redoc spec-url=\"../../internal-apis/dynamic-client-registration-internal.yaml\"></redoc>\n<script src=\"../../assets/lib/redoc/redoc.standalone.js\"> </script>",
+    "replace": "import RedocSpec from '@site/src/components/RedocSpec';\n\n<RedocSpec specPath=\"/internal-apis/dynamic-client-registration-internal.yaml\" />",
+    "reason": "MkDocs loads the Redoc <redoc> custom element and a script tag from assets/lib/redoc. Docusaurus cannot run page scripts, so the page renders the same spec with the self-hosted, pinned Redoc bundle through the RedocSpec component (Ruling 21)."
+  },
+  {
+    "id": "application-info-api-redoc-component",
+    "file": "references/application-info-api.md",
+    "find": "<redoc spec-url=\"../../internal-apis/application-info-300.yaml\"></redoc>\n<script src=\"../../assets/lib/redoc/redoc.standalone.js\"> </script>",
+    "replace": "import RedocSpec from '@site/src/components/RedocSpec';\n\n<RedocSpec specPath=\"/internal-apis/application-info-300.yaml\" />",
+    "reason": "MkDocs loads the Redoc <redoc> custom element and a script tag from assets/lib/redoc. Docusaurus cannot run page scripts, so the page renders the same spec with the self-hosted, pinned Redoc bundle through the RedocSpec component (Ruling 21)."
+  },
+  {
+    "id": "accelerator-extensions-api-redoc-component",
+    "file": "references/accelerator-extensions-api.md",
+    "find": "<redoc spec-url=\"../../internal-apis/accelerator-extensions-v1.0.3.yaml\"></redoc>\n<script src=\"../../assets/lib/redoc/redoc.standalone.js\"> </script>",
+    "replace": "import RedocSpec from '@site/src/components/RedocSpec';\n\n<RedocSpec specPath=\"/internal-apis/accelerator-extensions-v1.0.3.yaml\" />",
+    "reason": "MkDocs loads the Redoc <redoc> custom element and a script tag from assets/lib/redoc. Docusaurus cannot run page scripts, so the page renders the same spec with the self-hosted, pinned Redoc bundle through the RedocSpec component (Ruling 21)."
   }
 ]

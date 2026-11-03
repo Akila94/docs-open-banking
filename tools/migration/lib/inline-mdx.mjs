@@ -18,7 +18,7 @@ import {hasContentTitle, hasMarkdownH1, headingIdEdits, mkdocsHeadingIds} from '
 import {pageTitle} from './titles.mjs';
 
 /** The block passes' own JSX tags (left as they are). */
-const COMPONENT_TAG = /^<\/?(?:Tabs|TabItem|DeprecatedBanner)\b|^<details className="ob-details\b|^<\/details>$|^<\/?summary>$/;
+const COMPONENT_TAG = /^<\/?(?:Tabs|TabItem|DeprecatedBanner|RedocSpec)\b|^<details className="ob-details\b|^<\/details>$|^<\/?summary>$/;
 /** Phrasing containers in which inline HTML tags must balance. */
 const PHRASING_CONTAINERS = new Set(['paragraph', 'heading', 'tableCell']);
 
