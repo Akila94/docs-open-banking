@@ -2,10 +2,6 @@
 
 End-user apps in WSO2 Open Banking
 
-|  Branch | Build Status |
-| :------------ |:------------- 
-| master      | [![Build Status](https://wso2.org/jenkins/view/Dashboard/job/docs/job/docs-ob/badge/icon)](https://wso2.org/jenkins/view/Dashboard/job/docs/job/docs-open-banking/) |
-
 ## Prerequisites
 
 The site is built with [Docusaurus](https://docusaurus.io/) 3. You need [Node.js](https://nodejs.org/) 20 or later and npm.
@@ -53,7 +49,9 @@ The site is served at `http://localhost:3000/en/latest/`.
 
 `npm run preview` builds with `BASE_URL=/en/latest/`, copies the build to `.preview/en/latest/` next to a copy of
 `versions.json` (`.preview/en/versions/assets/versions.json`) and serves it on `http://127.0.0.1:3001/en/latest/`. The
-version dropdown reads `versions.json` from that location, as it does on the published site.
+version dropdown fetches `/en/versions/assets/versions.json` from the origin the page is served from (the browser's
+`window.location.origin`, so `http://127.0.0.1:3001` here; the configured site URL is used only when there is no
+window, i.e. during the build), so the staged copy is what the dropdown shows.
 
 - `versions.json` is read from the `versions` branch of the `upstream` remote, so run
   `git remote add upstream https://github.com/wso2/docs-open-banking.git` (once) and `git fetch upstream versions`

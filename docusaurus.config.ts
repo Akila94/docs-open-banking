@@ -47,6 +47,8 @@ const config: Config = {
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
+    // (Comment copied from docs-agent-platform, whose getting-started/on-a-vm.mdx it names; that file
+    // is not part of this repo.)
     // Disabled: on Docusaurus 3.10.2, v4:true pulls in the Rust-based Faster
     // bundler, which has a build-breaking MDX compilation bug when several
     // near-identical versioned docs are processed together (confirmed via

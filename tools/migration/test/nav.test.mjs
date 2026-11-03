@@ -85,8 +85,8 @@ describe('navTitles', () => {
 describe('buildSidebarsTs', () => {
   const iconSlugs = {'Get Started': 'get-started', Develop: 'develop'};
   const EXPECTED = `// GENERATED FILE - DO NOT EDIT.
-// Generated from the \`nav:\` of en/mkdocs.yml by tools/migration. Reproduce with:
-//   node tools/migration/convert.mjs --docs en/docs --mkdocs en/mkdocs.yml --fixups tools/migration/fixups/master.json --sidebars sidebars.ts
+// Generated from the \`nav:\` of the pre-migration en/mkdocs.yml (commit 615f2b8, since deleted)
+// by tools/migration. To reproduce, follow the "Converter" section of README.md.
 import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {

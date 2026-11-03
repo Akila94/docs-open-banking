@@ -172,9 +172,14 @@ export const SECTION_ICON_SLUGS = {
 /** Nav pages that belong to the site chrome, not to the sidebar. */
 const SIDEBAR_EXCLUDED_FILES = new Set(['index.md', 'page-not-found.md']);
 
-/** Reproduction command written into the header of the generated file. */
-const SIDEBARS_REPRODUCE_COMMAND = 'node tools/migration/convert.mjs --docs en/docs --mkdocs en/mkdocs.yml '
-  + '--fixups tools/migration/fixups/master.json --sidebars sidebars.ts';
+/**
+ * Provenance lines written into the header of the generated file. The MkDocs `en/mkdocs.yml` was
+ * deleted from this branch, so the header points at the commit and at the README's recipe.
+ */
+const SIDEBARS_HEADER_LINES = [
+  '// Generated from the `nav:` of the pre-migration en/mkdocs.yml (commit 615f2b8, since deleted)',
+  '// by tools/migration. To reproduce, follow the "Converter" section of README.md.',
+];
 
 /**
  * Render a string as a single-quoted TypeScript literal.
@@ -253,8 +258,7 @@ export function buildSidebarsTs(nav, {iconSlugs}) {
   const items = renderItems(nav, {iconSlugs, seen: new Set(), depth: 0});
   return [
     '// GENERATED FILE - DO NOT EDIT.',
-    '// Generated from the `nav:` of en/mkdocs.yml by tools/migration. Reproduce with:',
-    `//   ${SIDEBARS_REPRODUCE_COMMAND}`,
+    ...SIDEBARS_HEADER_LINES,
     "import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';",
     '',
     'const sidebars: SidebarsConfig = {',
