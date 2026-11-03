@@ -145,6 +145,11 @@ describe('htmlToJsx security', () => {
     assertRejected('<iframe src="https://www.youtube.com/embed/x"></iframe>');
   });
 
+  test('throws on data-verify-ignore: it hides content from the verification harness', () => {
+    assertRejected('<p data-verify-ignore>hidden</p>');
+    assertRejected('<div DATA-VERIFY-IGNORE="true">hidden</div>', {allowOnclick: true});
+  });
+
   test('throws on an onclick that is not a location.href card', () => {
     assertRejected('<div class="card" onclick="fetch(\'/x\')">a</div>', {allowOnclick: true});
   });

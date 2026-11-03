@@ -76,7 +76,7 @@ function jsxAttributeValue(value) {
  * @param {Array<{name: string, value: string}>} attributes Parsed attributes (parse5, decoded).
  * @param {{skip?: Set<string>}} [options] Lower-case attribute names to leave out (handled by the caller).
  * @returns {string} JSX attribute text, e.g. ` className="x" colSpan="2"`.
- * @throws {AttributeError} For event handlers, script URLs, `srcdoc` and unsafe styles.
+ * @throws {AttributeError} For event handlers, script URLs, `srcdoc`, `data-verify-ignore` and unsafe styles.
  */
 export function convertAttributes(attributes, options = {}) {
   const skip = options.skip ?? new Set();
@@ -91,6 +91,11 @@ export function convertAttributes(attributes, options = {}) {
     }
     if (lower === 'srcdoc') {
       throw new AttributeError('srcdoc is not allowed');
+    }
+    if (lower === 'data-verify-ignore') {
+      // Reserved for the RedocSpec loading placeholder; in a source it would hide content from the
+      // verification harness (tools/migration/verify/extract.py).
+      throw new AttributeError('data-verify-ignore is reserved for the verification harness and is not allowed');
     }
     if (URL_ATTRIBUTES.has(lower)) {
       try {
