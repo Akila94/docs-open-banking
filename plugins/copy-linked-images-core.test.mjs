@@ -1,8 +1,10 @@
-import {test} from 'node:test';
+import {describe, test} from 'node:test';
 import assert from 'node:assert/strict';
+import {mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import path from 'node:path';
 
-import {findLinkedImagePaths, resolveLinkedImage, LINKED_IMAGE_URL_PREFIX} from './copy-linked-images-core.mjs';
+import {assertRegularSourceFile, findLinkedImagePaths, resolveLinkedImage, LINKED_IMAGE_URL_PREFIX} from './copy-linked-images-core.mjs';
 
 const BASE = '/en/latest/';
 
@@ -32,4 +34,39 @@ test('rejects traversal, absolute, backslash, NUL and empty paths', () => {
   for (const bad of ['../x.png', 'a/../../x.png', '/etc/passwd', 'a\\..\\x.png', 'a\0b.png', '', '.', 'a/./b.png', 'a//b.png', 'a/']) {
     assert.throws(() => resolveLinkedImage(bad, root), /linked image path/, JSON.stringify(bad));
   }
+});
+
+describe('assertRegularSourceFile', () => {
+  /** A temp image root with `real.png`, a symlinked file, and a symlinked directory. */
+  function makeRoot() {
+    const outside = mkdtempSync(path.join(tmpdir(), 'cli-outside-'));
+    writeFileSync(path.join(outside, 'secret.png'), 'secret');
+    const root = mkdtempSync(path.join(tmpdir(), 'cli-root-'));
+    mkdirSync(path.join(root, 'dir'));
+    writeFileSync(path.join(root, 'dir', 'real.png'), 'png');
+    symlinkSync(path.join(outside, 'secret.png'), path.join(root, 'link.png'));
+    symlinkSync(outside, path.join(root, 'linkdir'));
+    return {root, cleanup: () => { rmSync(root, {recursive: true}); rmSync(outside, {recursive: true}); }};
+  }
+
+  test('accepts a regular file', () => {
+    const {root, cleanup} = makeRoot();
+    try {
+      assert.doesNotThrow(() => assertRegularSourceFile('dir/real.png', root));
+    } finally {
+      cleanup();
+    }
+  });
+
+  test('rejects a symlinked file, a file under a symlinked directory, a directory and a missing file', () => {
+    const {root, cleanup} = makeRoot();
+    try {
+      assert.throws(() => assertRegularSourceFile('link.png', root), /symbolic link/);
+      assert.throws(() => assertRegularSourceFile('linkdir/secret.png', root), /symbolic link/);
+      assert.throws(() => assertRegularSourceFile('dir', root), /not a regular file/);
+      assert.throws(() => assertRegularSourceFile('dir/none.png', root), /does not exist/);
+    } finally {
+      cleanup();
+    }
+  });
 });
