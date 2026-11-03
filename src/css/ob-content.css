@@ -34,58 +34,32 @@
 /*
  * Scoped to .markdown: .card, .line, .title and .content are generic names (Infima has .card).
  *
- * Layout of the converted home page (index.md keeps MkDocs's markup, including inline float/width
- * styles on the intro and video blocks, so the overrides below use !important where they must
- * win over those inline styles):
- *   - heading centred over the page;
- *   - intro text on the left filling the free space, video on the right;
- *   - the five cards wrap evenly (3 + 2, centred) with their titles and hints fully visible.
+ * The converted home page keeps MkDocs's markup and inline styles (intro floated left at 45%, video
+ * floated right, then rows of cards), so it renders like the MkDocs page once the theme's
+ * reading-width cap is lifted: agent-platform limits doc pages to 820px, which left the right
+ * side of this page empty. Only the home page contains .card tiles, hence the :has(.card) scope.
  */
-.markdown > div:has(> .md-main) {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem 2rem;
-  width: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-.markdown > div:has(> .md-main) > header {
-  flex: 0 0 100%;
-  text-align: center;
-}
-
-.markdown > div:has(> .md-main) > header h1 {
-  margin-bottom: 0;
-}
-
-/* Intro text: takes the remaining width beside the video. */
-.markdown > div:has(> .md-main) > .md-main:first-of-type {
-  float: none !important;
-  flex: 1 1 320px;
-  width: auto !important;
-  min-width: 0;
-  font-size: 1.05rem;
-  text-align: justify !important;
-}
-
-.markdown > div:has(> .md-main) > .md-main:first-of-type p:last-child {
-  margin-bottom: 0;
-}
-
-/* Video: right-hand side, fluid 16:9. */
-.markdown > div:has(> .md-main) > .md-main:nth-of-type(2) {
-  float: none !important;
-  flex: 0 1 560px;
-  width: auto !important;
-  min-width: 280px !important;
+[class*='docItemCol'][class*='docItemCol']:has(.markdown .card) {
   max-width: 100% !important;
-  margin: 0 !important;
+  flex-basis: 100%;
+  padding-right: 3rem;
 }
 
-.markdown > div:has(> .md-main) > .md-main:nth-of-type(2) iframe {
+.theme-doc-markdown.markdown:has(.card) {
+  max-width: 100%;
+}
+
+.markdown:has(.card) > div > header {
+  margin-bottom: 1.5rem;
+}
+
+/* Intro paragraphs: the MkDocs page set them larger than body text. */
+.markdown:has(.card) > div > .md-main:first-of-type {
+  font-size: 1.1rem;
+}
+
+/* The video: scale with its box instead of the fixed 800x250 attributes. */
+.markdown:has(.card) > div > .md-main iframe {
   display: block;
   width: 100%;
   height: auto;
@@ -93,28 +67,29 @@
   border: 0;
 }
 
-/* Cards: both .content rows share one centred, wrapping flex container. */
-.markdown > div:has(> .md-main) > div:has(> .content) {
-  display: flex;
-  flex: 0 0 100%;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 1.25rem;
-  margin-top: 1rem;
+/* Rows of cards start below the floated intro and video. */
+.markdown:has(.card) > div > div:has(> .content) {
+  clear: both;
+  padding-top: 1.5rem;
 }
 
 .markdown .content {
-  display: contents;
+  padding-right: 10px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
 }
 
 .markdown .card {
-  flex: 0 1 calc((100% - 2.5rem) / 3);
-  min-width: 260px;
+  flex: 0 1 350px;
+  min-width: 0;
   min-height: 110px;
   box-sizing: border-box;
   padding: 0.75rem 0.75rem 0.75rem 0.5rem;
   color: #404040;
-  margin: 0;
+  margin: 10px;
   background: #f8f8f8;
   box-shadow: 0 5px 4px 0 rgba(105, 113, 120, 0.4);
   border-left: 4px solid #f8f8f8;
@@ -189,13 +164,24 @@
   color: #404040;
 }
 
-@media screen and (max-width: 767px) {
-  .markdown > div:has(> .md-main) > .md-main:nth-of-type(2) {
-    flex-basis: 100%;
+@media screen and (max-width: 996px) {
+  .markdown .content {
+    flex-direction: column;
+    align-items: center;
   }
 
   .markdown .card {
-    flex-basis: 100%;
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 350px;
+  }
+
+  /* Intro and video stack (they carry inline float/width styles from the MkDocs page). */
+  .markdown:has(.card) > div > .md-main {
+    float: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 0 1rem !important;
   }
 }
 
