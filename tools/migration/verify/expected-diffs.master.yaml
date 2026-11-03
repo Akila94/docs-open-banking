@@ -13,4 +13,23 @@
 #     from: "old wording"         # Docusaurus value == MkDocs value with `from` replaced by `to` once
 #     to: "new wording"
 #     reason: why the difference is accepted
-rules: []
+rules:
+  - name: placeholder-visible
+    reason: >-
+      Author placeholders such as <IS_HOME> or Map<String, String> are swallowed as unknown HTML by
+      MkDocs and shown literally by Docusaurus (the text the author wrote).
+  - name: ol-start
+    reason: >-
+      MkDocs restarts every ordered list at 1; Docusaurus keeps the number the author wrote.
+  - name: list-not-paragraph
+    reason: >-
+      Lines the author wrote as a Markdown list that MkDocs rendered as a paragraph with literal
+      list markers are now a real list (author intent), with identical text.
+  - name: deprecated-banner-page-removed
+    reason: >-
+      includes/deprecated-banner.md is a snippet include, not a page; it is now the partial
+      includes/_deprecated-banner.md and no longer published.
+  - name: gfm-autolink-literal
+    reason: >-
+      remark-gfm links bare URLs and emails that MkDocs shows as plain text (Ruling 20); the text is
+      unchanged.

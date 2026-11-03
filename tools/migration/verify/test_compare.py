@@ -353,8 +353,9 @@ def write_yaml(tmp_path, text):
     return path
 
 
-def test_master_allowlist_is_valid_and_empty():
-    assert compare.load_rules(HERE / "expected-diffs.master.yaml") == []
+def test_master_allowlist_is_valid():
+    rules = compare.load_rules(HERE / "expected-diffs.master.yaml")
+    assert rules and all(rule.reason for rule in rules)
 
 
 def test_load_rules_reads_names_and_fixup_scopes(tmp_path):
@@ -437,9 +438,10 @@ def test_cli_returns_usage_error_for_bad_inputs(tmp_path):
 def test_script_runs_isolated_from_the_command_line(tmp_path):
     mkdocs = write_jsonl(tmp_path / "mk.jsonl", [make_page()])
     docusaurus = write_jsonl(tmp_path / "docu.jsonl", [make_page()])
+    allowlist = write_yaml(tmp_path, "rules: []\n")
     completed = subprocess.run(
         [sys.executable, "-I", str(HERE / "compare.py"), str(mkdocs), str(docusaurus),
-         "--allow", str(HERE / "expected-diffs.master.yaml"), "--report", str(tmp_path / "report.md")],
+         "--allow", str(allowlist), "--report", str(tmp_path / "report.md")],
         capture_output=True, text=True,
     )
     assert completed.returncode == 0, completed.stderr
