@@ -53,12 +53,56 @@
   margin-bottom: 1.5rem;
 }
 
-/* Intro paragraphs: the MkDocs page set them larger than body text. */
-.markdown:has(.card) > div > .md-main:first-of-type {
-  font-size: 1.1rem;
+
+/*
+ * Intro and video share one row; the video box is stretched to the intro's height (flex row), so
+ * the video is exactly as tall as the paragraph beside it.
+ */
+.markdown:has(.card) > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  column-gap: 2rem;
 }
 
-/* The video: scale with its box instead of the fixed 800x250 attributes. */
+.markdown:has(.card) > div > header {
+  flex: 0 0 100%;
+  margin-bottom: 0.5rem;
+}
+
+.markdown:has(.card) > div > header h1 {
+  margin-bottom: 0;
+  font-size: 1.9rem;
+}
+
+.markdown:has(.card) > div > .md-main:first-of-type {
+  float: none !important;
+  flex: 1 1 0;
+  width: auto !important;
+  min-width: 0;
+}
+
+.markdown:has(.card) > div > .md-main:first-of-type {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.markdown:has(.card) > div > .md-main:first-of-type p {
+  margin-bottom: 0.75rem;
+}
+
+.markdown:has(.card) > div > .md-main:nth-of-type(2) {
+  float: none !important;
+  flex: 0 0 42%;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  display: flex;
+}
+
 .markdown:has(.card) > div > .md-main iframe {
   display: block;
   width: 100%;
@@ -69,8 +113,8 @@
 
 /* Rows of cards start below the floated intro and video. */
 .markdown:has(.card) > div > div:has(> .content) {
-  clear: both;
-  padding-top: 1.5rem;
+  flex: 0 0 100%;
+  padding-top: 1.25rem;
 }
 
 .markdown .content {
@@ -85,11 +129,11 @@
 .markdown .card {
   flex: 0 1 350px;
   min-width: 0;
-  min-height: 110px;
+  min-height: 90px;
   box-sizing: border-box;
   padding: 0.75rem 0.75rem 0.75rem 0.5rem;
   color: #404040;
-  margin: 10px;
+  margin: 6px 10px;
   background: #f8f8f8;
   box-shadow: 0 5px 4px 0 rgba(105, 113, 120, 0.4);
   border-left: 4px solid #f8f8f8;
@@ -164,7 +208,55 @@
   color: #404040;
 }
 
+/*
+ * Home page only (docs-doc-id-index): fit in one screen, no scrolling. The page-level "Edit this
+ * page / last updated" row is dropped and the footer is compacted.
+ */
+html.docs-doc-id-index .theme-doc-footer {
+  display: none;
+}
+
+html.docs-doc-id-index .footer {
+  padding: 0.5rem 1rem;
+}
+
+html.docs-doc-id-index .footer__bottom {
+  line-height: 1.4;
+}
+
+html.docs-doc-id-index [class*='docItemContainer'],
+html.docs-doc-id-index [class*='docItemContainer'] article,
+html.docs-doc-id-index .theme-doc-markdown.markdown,
+html.docs-doc-id-index [class*='docMainContainer'] > .container {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+html.docs-doc-id-index [class*='docMainContainer'] > .container {
+  padding-top: 1rem;
+}
+
+/* Everything after the article (pagination, doc footer) is empty or unwanted on the home page. */
+html.docs-doc-id-index [class*='docItemContainer'] > :not(article) {
+  display: none;
+}
+
+html.docs-doc-id-index .main-wrapper > .container,
+html.docs-doc-id-index [class*='docMainContainer'] {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 @media screen and (max-width: 996px) {
+  .markdown:has(.card) > div > .md-main:nth-of-type(2) {
+    flex-basis: 100%;
+  }
+
+  .markdown:has(.card) > div > .md-main iframe {
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
   .markdown .content {
     flex-direction: column;
     align-items: center;
