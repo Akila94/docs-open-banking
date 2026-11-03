@@ -191,7 +191,7 @@ restoration is required.
 
 - The `<DB>-consent-restore-script.sql` and `<DB>-event-notification-restore-script.sql` contain the stored procedures
     that are used to restore the purged consents and event notifications from the consent tables respectively.
-- The restoration can only be performed if the `backupTables `property is set to `true` in the data purging procedures.
+- The restoration can only be performed if the `backupTables`property is set to `true` in the data purging procedures.
 - This is only an immediate restoration script for the data purging procedures, therefore each execution of the 
     `WSO2_OB_CONSENT_CLEANUP_SP` and `WSO2_OB_EVENT_NOTIFICATION_CLEANUP_SP` procedures will replace the backup tables.
 - You can schedule a cleanup task to automatically run after a given period of time, for example:

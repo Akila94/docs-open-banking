@@ -93,6 +93,25 @@ class InlineConverter {
   }
 
   /**
+   * Trim a code span's padding the way Python-Markdown does.
+   *
+   * Python-Markdown strips all whitespace around a code span's content, while CommonMark only strips
+   * one space when both sides have one. A span like `` `name `text `` therefore reads "nametext" in
+   * MkDocs but "name text" in Docusaurus; trimming the padding keeps the MkDocs text. Spans whose trimmed
+   * content starts or ends with a backtick cannot be expressed without padding and are left alone.
+   *
+   * @param {object} node `inlineCode` mdast node.
+   */
+  inlineCode(node) {
+    const trimmed = node.value.trim();
+    if (trimmed === node.value || trimmed === '' || trimmed.startsWith('`') || trimmed.endsWith('`')) {
+      return;
+    }
+    const fence = /^`+/.exec(this.slice(node))[0];
+    this.edit(node.position.start.offset, node.position.end.offset, `${fence}${trimmed}${fence}`);
+  }
+
+  /**
    * Visit a node and its children.
    *
    * @param {object} node mdast node.
@@ -101,7 +120,9 @@ class InlineConverter {
   visit(node, container) {
     switch (node.type) {
       case 'code':
+        return;
       case 'inlineCode':
+        this.inlineCode(node);
         return;
       case 'text':
         this.text(node);

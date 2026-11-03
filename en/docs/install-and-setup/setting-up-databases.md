@@ -65,7 +65,7 @@ WSO2 Open Banking Accelerator is [compatible](prerequisites.md#compatibility) wi
     |------------------|-----------------------------------------|
     | fs_identitydb    | `[database.identity_db]`                |
     | fs_iskm_configdb | `[database.shared_db]`                  |
-    | fs_iskm_configdb | `[database.config] `                    |
+    | fs_iskm_configdb | `[database.config]`                    |
     | fs_userdb        | `[database.user]`                       |
     | fs_consentdb     | `[[datasource]]` <br /> `id="WSO2FS_DB"` |
 
@@ -359,9 +359,9 @@ according to your DBMS.
 |----------------------|-------------------------------------------------------------------------------------------------------------------|
 | fs_identitydb        | `<IS_HOME>/dbscripts/identity` and `<IS_HOME>/dbscripts/consent`                                                  |
 | fs_userdb            | `<IS_HOME>/dbscripts`                                                                                             |
-| fs_iskm_configdb     | `<IS_HOME>/dbscripts `                                                                                            |
+| fs_iskm_configdb     | `<IS_HOME>/dbscripts`                                                                                            |
 | fs_consentdb         | `<IS_HOME>/dbscripts/financial-services/consent` and `<IS_HOME>/dbscripts/financial-services/event-notifications` |
-| fs_apimgtdb          | `<APIM_HOME>/dbscripts/apimgt ` |
+| fs_apimgtdb          | `<APIM_HOME>/dbscripts/apimgt` |
 | fs_am_configdb       | `<APIM_HOME>/dbscripts` |
 | fs_am_userdb         | `<APIM_HOME>/dbscripts` |
 

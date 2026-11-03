@@ -116,7 +116,7 @@ Please refer to the Step 1 and 2 in the [try-out-flow.md](../get-started/try-out
 
 - Follow the [Quick Start Guide](../get-started/quick-start-guide.md) and set up the base products and accelerators.
 - Open the `<IS_HOME>/repository/conf/deployment.toml` file:
-- Add the following under the ` [[resource.access_control]]` tags:
+- Add the following under the `[[resource.access_control]]` tags:
 
     ```toml
     [[resource.access_control]]

@@ -40,7 +40,7 @@ This section explains how to set up the solution with a MySQL 8.0 database serve
 3. Configure database-related properties and database names.
 
 ### Step 3: Set up the IS server
-1. Open and configure the configure.properties file resides in ` <IS_HOME>/<OB_IS_ACCELERATOR_HOME>/repository/conf` folder.
+1. Open and configure the configure.properties file resides in `<IS_HOME>/<OB_IS_ACCELERATOR_HOME>/repository/conf` folder.
     a. Configure the hostnames of the API Manager and Identity Server.
 
     b. Configure the admin credentials of the Identity Server.
@@ -163,7 +163,7 @@ This section explains how to set up the solution with a MySQL 8.0 database serve
 3. Configure database-related properties and database names.
 
 ### Step 3: Set up the APIM server
-1. Open and configure the configure.properties file resides in ` <APIM_HOME>/<OB_APIM_ACCELERATOR_HOME>/repository/conf` folder.
+1. Open and configure the configure.properties file resides in `<APIM_HOME>/<OB_APIM_ACCELERATOR_HOME>/repository/conf` folder.
     a. Configure the hostnames of the API Manager and Identity Server.
 
     b. Configure the admin credentials of the API Manager and Identity Server.
