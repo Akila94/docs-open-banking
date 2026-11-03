@@ -334,5 +334,19 @@
     "find": "<redoc spec-url=\"../../internal-apis/accelerator-extensions-v1.0.3.yaml\"></redoc>\n<script src=\"../../assets/lib/redoc/redoc.standalone.js\"> </script>",
     "replace": "import RedocSpec from '@site/src/components/RedocSpec';\n\n<RedocSpec specPath=\"/internal-apis/accelerator-extensions-v1.0.3.yaml\" />",
     "reason": "MkDocs loads the Redoc <redoc> custom element and a script tag from assets/lib/redoc. Docusaurus cannot run page scripts, so the page renders the same spec with the self-hosted, pinned Redoc bundle through the RedocSpec component (Ruling 21)."
+  },
+  {
+    "id": "manual-client-registration-process-devportal-link",
+    "file": "learn/manual-client-registration-process.md",
+    "find": "[Developer portal](https://<APIM_HOST>:9443/devportal)",
+    "replace": "<a href=\"https://<APIM_HOST>:9443/devportal\">Developer portal</a>",
+    "reason": "The Markdown link destination `https://<APIM_HOST>:9443/devportal` is not a parseable URL, and Docusaurus aborts the build while resolving it (\"Can't parse URL\"). MkDocs emitted it verbatim as an href; an HTML anchor keeps exactly that href and the same link text, and Docusaurus does not resolve it."
+  },
+  {
+    "id": "manual-client-registration-devportal-link",
+    "file": "tryout-flows/accelerator-with-is-and-apim/manual-client-registration.md",
+    "find": "[Developer portal](https://<APIM_HOST>:9443/devportal)",
+    "replace": "<a href=\"https://<APIM_HOST>:9443/devportal\">Developer portal</a>",
+    "reason": "The Markdown link destination `https://<APIM_HOST>:9443/devportal` is not a parseable URL, and Docusaurus aborts the build while resolving it (\"Can't parse URL\"). MkDocs emitted it verbatim as an href; an HTML anchor keeps exactly that href and the same link text, and Docusaurus does not resolve it."
   }
 ]

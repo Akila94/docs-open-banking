@@ -23,7 +23,7 @@ This page explains how to onboard API consumers using the Manual Client Registra
 
 ### Step 2: Sign in to the Developer Portal as the TPP
 
-1. Now, sign in to the [Developer portal](https://<APIM_HOST>:9443/devportal) as the TPP.
+1. Now, sign in to the <a href="https://<APIM_HOST>:9443/devportal">Developer portal</a> as the TPP.
 
 2. Enter the username and the password you entered when signing up as a TPP.
 
