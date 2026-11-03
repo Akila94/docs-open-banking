@@ -1,0 +1,169 @@
+{
+  "description": "Pre-existing broken links, missing images and bad anchors carried over from the MkDocs site. Entries are only ever removed (npm run check-links fails once one is fixed); regenerate with node scripts/check-links.mjs --write-baseline after fixing.",
+  "entries": [
+    {
+      "page": "/en/latest/conformance/ciba-conformance/",
+      "attribute": "href",
+      "url": "##set-up-ciba-automated-approval-endpoint",
+      "reason": "missing-anchor"
+    },
+    {
+      "page": "/en/latest/develop/java/ciba-push-authenticator/",
+      "attribute": "href",
+      "url": "/en/latest/learn/ciba-set-up-flow/#configuring-authenticator",
+      "reason": "missing-anchor"
+    },
+    {
+      "page": "/en/latest/develop/java/custom-request-router/",
+      "attribute": "href",
+      "url": "#:~:text=%7BThe%20sample%20approach%20is%20as%20follows:%7D",
+      "reason": "missing-anchor"
+    },
+    {
+      "page": "/en/latest/develop/java/distributed-cache/",
+      "attribute": "href",
+      "url": "/en/latest/learn/distributed-caching/#wso2-open-banking-distributed-cache",
+      "reason": "missing-anchor"
+    },
+    {
+      "page": "/en/latest/develop/mobile-application-for-ciba/",
+      "attribute": "href",
+      "url": "",
+      "reason": "empty-url"
+    },
+    {
+      "page": "/en/latest/get-started/try-out-flow-with-is/",
+      "attribute": "href",
+      "url": "/en/latest/get-started/assets/attachments/transport-certs",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/get-started/try-out-flow-with-is/",
+      "attribute": "src",
+      "url": "../assets/img/learn/consent-manager/consent-page-confirm.png",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/get-started/try-out-flow/",
+      "attribute": "href",
+      "url": "/en/latest/get-started/assets/attachments/transport-certs",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/get-started/try-out-flow/",
+      "attribute": "src",
+      "url": "../assets/img/learn/consent-manager/consent-page-confirm.png",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/install-and-setup/deploy-with-docker/",
+      "attribute": "href",
+      "url": "#download-wso2-updates",
+      "reason": "missing-anchor"
+    },
+    {
+      "page": "/en/latest/learn/ciba-set-up-flow/",
+      "attribute": "href",
+      "url": "/en/latest/learn/dynamic-client-registration-try-out/##step-2-configure-is-as-key-manager",
+      "reason": "missing-anchor"
+    },
+    {
+      "page": "/en/latest/learn/consent-authorization-intro/",
+      "attribute": "src",
+      "url": "../assets/img/learn/consent-manager/consent-page-confirm.png",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/learn/consent-authorization-intro/",
+      "attribute": "src",
+      "url": "../assets/img/learn/consent-manager/consent-page-select-accounts.png",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/learn/consent-management-endpoint/",
+      "attribute": "href",
+      "url": "/en/latest/assets/attachments/transport-certs",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/learn/consent-management-try-out/",
+      "attribute": "href",
+      "url": "/en/latest/assets/attachments/transport-certs",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/learn/consent-management-try-out/",
+      "attribute": "src",
+      "url": "../assets/img/learn/consent-manager/consent-page-confirm.png",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/learn/consent-manager/",
+      "attribute": "href",
+      "url": "/en/latest/references/consent-rest-api/#/Admin",
+      "reason": "missing-anchor"
+    },
+    {
+      "page": "/en/latest/learn/manual-client-registration-process/",
+      "attribute": "href",
+      "url": "/en/latest/learn/manual-client-registration-process.md",
+      "reason": "missing-page",
+      "note": "NOT pre-existing in MkDocs. The \"Copy page\" .md mirror is missing because docusaurus-plugin-llms-txt fails on this page (build warning: Can't parse URL https://<APIM_HOST>:9443/devportal). Fix the mirror generation, then drop this entry."
+    },
+    {
+      "page": "/en/latest/tryout-flows/accelerator-with-is-and-apim/dynamic-client-registration/",
+      "attribute": "href",
+      "url": "/en/latest/tryout-flows/accelerator-with-is-and-apim/learn/create-policies.md",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/tryout-flows/accelerator-with-is-and-apim/manual-client-registration/",
+      "attribute": "href",
+      "url": "/en/latest/tryout-flows/accelerator-with-is-and-apim/manual-client-registration.md",
+      "reason": "missing-page",
+      "note": "NOT pre-existing in MkDocs. The \"Copy page\" .md mirror is missing because docusaurus-plugin-llms-txt fails on this page (build warning: Can't parse URL https://<APIM_HOST>:9443/devportal). Fix the mirror generation, then drop this entry."
+    },
+    {
+      "page": "/en/latest/tryout-flows/accelerator-with-is-and-apim/try-out-accounts-flow-dcr/",
+      "attribute": "href",
+      "url": "/en/latest/tryout-flows/assets/attachments/transport-certs/",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/tryout-flows/accelerator-with-is-and-apim/try-out-accounts-flow-dcr/",
+      "attribute": "src",
+      "url": "../../assets/img/learn/consent-manager/consent-page-confirm.png",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/tryout-flows/accelerator-with-is-and-apim/try-out-accounts-flow/",
+      "attribute": "src",
+      "url": "../../assets/img/learn/consent-manager/consent-page-confirm.png",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/tryout-flows/accelerator-with-is-and-apim/try-out-payments-flow-dcr/",
+      "attribute": "href",
+      "url": "/en/latest/tryout-flows/assets/attachments/transport-certs/",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/tryout-flows/accelerator-with-is/try-out-flow-pre_initiated_consent/",
+      "attribute": "href",
+      "url": "/en/latest/tryout-flows/assets/attachments/transport-certs",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/tryout-flows/accelerator-with-is/try-out-flow-pre_initiated_consent/",
+      "attribute": "src",
+      "url": "../../assets/img/learn/consent-manager/consent-page-confirm.png",
+      "reason": "missing-page"
+    },
+    {
+      "page": "/en/latest/tryout-flows/accelerator-with-is/try-out-flow-scope-based-consent/",
+      "attribute": "href",
+      "url": "#step-1-generate-application-access-token",
+      "reason": "missing-anchor"
+    }
+  ]
+}

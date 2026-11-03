@@ -8,44 +8,11 @@ End-user apps in WSO2 Open Banking
 
 ## Prerequisites
 
-To run the project locally, it requires [python](https://www.python.org/downloads/) & [pip](https://pypi.org/project/pip/).
-
-### Install Python
-
-Check if you already have Python installed by running the following command.
+The site is built with [Docusaurus](https://docusaurus.io/) 3. You need [Node.js](https://nodejs.org/) 20 or later and npm.
 
 ```bash
-$ python --version
-Python 2.7.10
-```
-
-If you receive a response similar to the one shown above, `Python 2.7.10` is your default version.
-
-You should also check if you have Python 3 installed. 
-
-```bash
-$ python3 --version
-Python 3.8.0
-```
-
-If you don't seem to have `Python` installed, grab the latest release from the [official downloads page](https://www.python.org/downloads/).
-
-### Install pip
-
-pip is already installed if you are using Python 2 >=2.7.9 or Python 3 >=3.4 downloaded from [python.org](https://www.python.org/) or if you are working in a [Virtual Environment](https://packaging.python.org/tutorials/installing-packages/#creating-and-using-virtual-environments) created by [virtualenv](https://packaging.python.org/key_projects/#virtualenv) or [pyvenv](https://packaging.python.org/key_projects/#venv). Just make sure to [upgrade pip](https://pip.pypa.io/en/stable/installing/#upgrading-pip).
-
-#### Installing with get-pip.py
-
-To install pip with `curl`, execute the following command. Alternatively you can download `get-pip.py` by clicking [here](https://bootstrap.pypa.io/get-pip.py). 
-
-```bash
-$ curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-```
-
-Then run the following command in the folder where you have downloaded get-pip.py
-
-```bash
-$ python get-pip.py
+$ node --version
+v20.0.0
 ```
 
 ## Run project locally (Dev Mode)
@@ -59,16 +26,126 @@ $ git clone https://github.com/wso2/docs-open-banking.git
 **Install the dependencies**
 
 ```bash
-$ cd docs-open-banking && pip install -r requirements.txt
+$ cd docs-open-banking && npm ci
 ```
 
-**Run mkdocs**
-
-Execute the following command from inside the `<Lang folder>`.
+**Start the dev server**
 
 ```bash
-$ cd en && mkdocs serve
+$ npm run start
 ```
+
+The site is served at `http://localhost:3000/en/latest/`.
+
+## Commands
+
+| Command | What it does |
+| :------ | :----------- |
+| `npm run start` | Dev server with hot reload on port 3000. |
+| `npm run build` | Production build into `build/`. `BASE_URL` selects where the site is mounted (default `/en/latest/`, must look like `/en/<version>/`). |
+| `npm run typecheck` | TypeScript check (`tsc`). |
+| `npm run audit` | Dependency security audit (`audit-ci`), also run in CI. |
+| `npm test` | Unit tests: the converter, the plugins, the version dropdown and the link checker. |
+| `npm run check-links` | Compares broken links in `build/` with `broken-links-baseline.json` (see [Broken links](#broken-links)). |
+| `npm run preview` | Production-like local preview (see below). |
+
+## Local preview
+
+`npm run preview` builds with `BASE_URL=/en/latest/`, copies the build to `.preview/en/latest/` next to a copy of
+`versions.json` (`.preview/en/versions/assets/versions.json`) and serves it on `http://127.0.0.1:3001/en/latest/`. The
+version dropdown reads `versions.json` from that location, as it does on the published site.
+
+- `versions.json` is read from the `versions` branch of the `upstream` remote, so run
+  `git remote add upstream https://github.com/wso2/docs-open-banking.git` (once) and `git fetch upstream versions`
+  before the first preview.
+- `npm run preview -- --no-build` re-serves the existing `build/` without rebuilding.
+- The "Show all" link of the dropdown goes to `/en/versions/`, which is a separate site and is not part of the preview.
+- To compare with the original MkDocs site, build it with `tools/migration/verify/build_mkdocs.sh` from a checkout of
+  the pre-migration commit (see `tools/migration/verify/`) and serve it on `http://127.0.0.1:8000/` with
+  `MK_SITE_DIR=<built site> tools/migration/verify/serve-mkdocs.sh`.
+
+## Writing content
+
+Pages live in `en/docs/` and stay `.md` files, but Docusaurus compiles them as **MDX**, so the parser is strict:
+
+- Write `{` and `<` that are not meant as code or JSX inside backticks or fenced code blocks. Outside code, escape them
+  (`\{`, `\<`) or use a code span, for example `` `<APIM_HOME>` ``. A bare `<APIM_HOME>` is read as a JSX tag and fails the build.
+- Indented code blocks are not supported; use fenced blocks.
+- HTML comments are written `{/* comment */}`, not `<!-- -->`.
+- Callouts use `:::note`, `:::tip`, `:::info`, `:::warning`, `:::caution` or `:::danger` and are closed with `:::`.
+  Collapsible content uses `<details><summary>...</summary>...</details>`.
+- Internal links are relative `.md` paths with an optional anchor. Images live in `en/docs/assets/img/`.
+
+`npm run build` reports any page that does not compile.
+
+## Configuration catalogs
+
+`en/docs/references/config-catalog-is.md` and `config-catalog-apim.md` are generated by the Node tools in
+`en/tools/config-catalog-generator-is/` and `en/tools/config-catalog-generator-apim/`. The generated Markdown is MkDocs-style
+HTML and must pass through the converter before Docusaurus can compile it:
+
+1. In the generator directory, run `npm install` and `npm run build`. This writes `dist/config-catalog.md`.
+2. Copy `dist/config-catalog.md` to `en/docs/references/config-catalog-is.md` (or `config-catalog-apim.md`).
+3. Run the converter in converted mode (no `--fixups`) on `en/docs`. `--mkdocs` takes the committed copy of the
+   original navigation:
+
+   ```bash
+   $ node tools/migration/convert.mjs --docs en/docs --mkdocs tools/migration/test/fixtures/mkdocs.master.yml
+   ```
+
+4. Run `npm run build` and `npm run check-links`.
+
+## Converter
+
+`tools/migration/` holds the converter that turned the MkDocs sources into the MDX in `en/docs/` and generated
+`sidebars.ts` from the `nav:` of the old `mkdocs.yml`. Install its dependencies with `cd tools/migration && npm ci`.
+
+- `node tools/migration/convert.mjs --docs en/docs --mkdocs tools/migration/test/fixtures/mkdocs.master.yml --check`
+  confirms the converted pages are stable (exit 0 means nothing would change).
+- The fixups in `tools/migration/fixups/master.json` only apply to the MkDocs sources, so they cannot be re-run on the
+  converted pages. To regenerate the pages, run the converter against a checkout of the pre-conversion sources
+  (commit `615f2b8`; the MkDocs oracle is `b9cdd8c`) and copy the intended changes into `en/docs/`:
+
+  ```bash
+  $ WORK=$(mktemp -d)
+  $ git archive 615f2b8 en static | tar -x -C "$WORK"
+  $ git archive HEAD static | tar -x -C "$WORK"
+  $ node tools/migration/convert.mjs --docs "$WORK/en/docs" --mkdocs "$WORK/en/mkdocs.yml" \
+      --fixups tools/migration/fixups/master.json --sidebars "$WORK/sidebars.ts"
+  $ diff -rq "$WORK/en/docs" en/docs
+  ```
+
+- `tools/migration/verify/` is a local-only harness that builds the MkDocs original and this site and diffs the
+  rendered content against an allowlist. It needs Python and the MkDocs toolchain, so CI does not run it.
+
+## Broken links
+
+The site has links, images and anchors that were already broken in the MkDocs version. They are kept as they were, so
+Docusaurus' `onBrokenLinks`, `onBrokenAnchors` and `onBrokenMarkdownLinks` are set to `warn` rather than `throw`.
+
+`npm run check-links` (`scripts/check-links.mjs`) scans every `href` and `src` in `build/` and compares the broken ones
+with `broken-links-baseline.json`. It fails on:
+
+- any **new** broken link, which you fix; and
+- any baseline entry that now **resolves**, which you remove from the baseline.
+
+Once you fix a link, rebuild and regenerate the baseline, then commit it with the fix:
+
+```bash
+$ npm run build
+$ node scripts/check-links.mjs --build build --base-url /en/latest/ --baseline broken-links-baseline.json --write-baseline
+```
+
+Never add entries to the baseline to get a build through; it only shrinks. Entries may carry a `note`, which
+`--write-baseline` keeps.
+
+## Deploy
+
+Pushes to `master` run `.github/workflows/deploy.yml`, which builds the site twice (`BASE_URL=/en/latest/` and
+`/en/4.0.0/`) and publishes the two builds to the `gh-pages` branch folders `en/latest` and `en/4.0.0` using
+`JamesIves/github-pages-deploy-action`. The workflow can also be started manually (`workflow_dispatch`). Pull requests
+against `master`, `3.0.0` and `versions` run `.github/workflows/pr-checks.yml`: `npm ci`, audit, typecheck, tests, build
+and `check-links`. Workflow actions are pinned by commit SHA.
 
 ## License
 
