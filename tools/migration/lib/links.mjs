@@ -53,6 +53,19 @@ export function isStaticPath(relative) {
 }
 
 /**
+ * Whether a link (not an image src) targets an image file. Docusaurus would bundle such a link to
+ * `assets/files/<hash>.<ext>/` (a 404 with trailingSlash), so it is emitted as `pathname:///assets/img/...`,
+ * MkDocs's own URL; `plugins/copy-linked-images.ts` publishes the linked files there.
+ *
+ * @param {string} relative Docs-relative target.
+ * @param {boolean} image True when the reference is an image src.
+ * @returns {boolean} True for links to files under `assets/img/`.
+ */
+function isLinkedImage(relative, image) {
+  return !image && relative.startsWith('assets/img/');
+}
+
+/**
  * Port of Python's `urllib.parse.unquote` (UTF-8, invalid sequences replaced).
  *
  * @param {string} value Percent-encoded text.
@@ -173,8 +186,8 @@ function docAtUrl(urlPath, existsFn) {
  * @param {object} link Link parts.
  * @returns {{kind: string, out: string}} Resolution.
  */
-function resolvedTarget({href, pathPart, suffix, decoded, target, fromFile}) {
-  if (isStaticPath(target)) {
+function resolvedTarget({href, pathPart, suffix, decoded, target, fromFile, image}) {
+  if (isStaticPath(target) || isLinkedImage(target, image)) {
     return {kind: 'static', out: `pathname:///${pythonQuote(target)}${suffix}`};
   }
   const kind = target.endsWith('.md') ? 'doc' : 'image';
@@ -206,7 +219,7 @@ function resolveAsWritten({href, suffix, fromFile, existsFn, siteUrl, image}) {
   }
   // MkDocs serves every docs file except Markdown, which it renders to a page URL.
   if (!relative.endsWith('.md') && isContainedPath(relative) && existsFn(relative)) {
-    return isStaticPath(relative)
+    return isStaticPath(relative) || isLinkedImage(relative, image)
       ? {kind: 'static', out: `pathname:///${pythonQuote(relative)}${suffix}`}
       : {kind: 'image', out: `${pythonQuote(relativeFrom(fromFile, relative))}${suffix}`};
   }

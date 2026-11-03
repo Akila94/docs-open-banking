@@ -217,6 +217,12 @@ describe('resolveMkdocsLink', () => {
     assert.deepEqual(resolve('../assets/img/missing.png', 'learn/page.md', {image: true}), {kind: 'broken', out: '../assets/img/missing.png'});
   });
 
+  test('links to image files keep MkDocs\'s URL via pathname:// (the postBuild plugin serves them)', () => {
+    assert.deepEqual(resolve('..%2Fassets%2Fimg%2Fa.png'), {kind: 'static', out: 'pathname:///assets/img/a.png'});
+    assert.deepEqual(resolve('../../assets/img/a.png'), {kind: 'static', out: 'pathname:///assets/img/a.png'});
+    assert.deepEqual(resolve('../../assets/img/missing.png'), {kind: 'broken', out: 'pathname:///assets/img/missing.png'});
+  });
+
   test('rejects javascript: URLs', () => {
     assert.throws(() => resolve('javascript:alert(1)'));
   });
