@@ -182,6 +182,78 @@ def test_placeholder_rule_does_not_hide_real_text_changes_or_code():
     assert not run(mkdocs, [make_page(blocks=["Go to /repository"], code=["a b"])], "placeholder-visible").passed
 
 
+
+# ------------------------------------------------------ gfm-autolink-literal
+
+
+def link(text, target, exists=None):
+    """A link model entry."""
+    return {"text": text, "target": target, "exists": exists}
+
+
+def autolink_pages(added, mkdocs_blocks=("Write to is_admin@wso2.com or see https://wso2.com now.",),
+                   docusaurus_blocks=None, existing=()):
+    """MkDocs shows bare URLs as plain text; Docusaurus (remark-gfm) adds links for them."""
+    mkdocs = make_page(blocks=list(mkdocs_blocks), links=list(existing))
+    docusaurus = make_page(
+        blocks=list(mkdocs_blocks if docusaurus_blocks is None else docusaurus_blocks),
+        links=list(existing) + list(added),
+    )
+    return [mkdocs], [docusaurus]
+
+
+def test_gfm_autolink_literal_accepts_added_links_whose_text_is_the_url_or_email():
+    mkdocs, docusaurus = autolink_pages([
+        link("is_admin@wso2.com", "mailto:is_admin@wso2.com"), link("https://wso2.com", "https://wso2.com"),
+    ])
+    assert not run(mkdocs, docusaurus).passed
+    result = run(mkdocs, docusaurus, "gfm-autolink-literal")
+    assert result.passed
+    assert result.rule_counts == {"gfm-autolink-literal": 1}
+
+
+def test_gfm_autolink_literal_accepts_percent_encoded_url_text():
+    mkdocs, docusaurus = autolink_pages(
+        [link("http://obis/>", "http://obis/%3E")], mkdocs_blocks=("Use the http://obis/> upstream.",)
+    )
+    assert run(mkdocs, docusaurus, "gfm-autolink-literal").passed
+
+
+def test_gfm_autolink_literal_keeps_existing_links_in_place():
+    existing = [link("Guide", "learn/guide/", True)]
+    mkdocs, docusaurus = autolink_pages([link("https://wso2.com", "https://wso2.com")], existing=existing)
+    assert run(mkdocs, docusaurus, "gfm-autolink-literal").passed
+
+
+def test_gfm_autolink_literal_rejects_a_link_whose_text_is_not_its_url():
+    mkdocs, docusaurus = autolink_pages([link("WSO2 website", "https://wso2.com")])
+    assert not run(mkdocs, docusaurus, "gfm-autolink-literal").passed
+
+
+def test_gfm_autolink_literal_rejects_text_that_was_not_visible_in_mkdocs():
+    mkdocs, docusaurus = autolink_pages(
+        [link("https://new.example", "https://new.example")], docusaurus_blocks=("Brand new https://new.example",)
+    )
+    assert not run(mkdocs, docusaurus, "gfm-autolink-literal").passed
+
+
+def test_gfm_autolink_literal_does_not_excuse_changed_or_removed_links():
+    base = [link("Guide", "learn/guide/", True)]
+    changed = ([make_page(blocks=["https://wso2.com"], links=base)],
+               [make_page(blocks=["https://wso2.com"], links=[link("Guide", "learn/other/", True),
+                                                              link("https://wso2.com", "https://wso2.com")])])
+    removed = ([make_page(blocks=["https://wso2.com"], links=base)],
+               [make_page(blocks=["https://wso2.com"], links=[link("https://wso2.com", "https://wso2.com")])])
+    assert not run(*changed, "gfm-autolink-literal").passed
+    assert not run(*removed, "gfm-autolink-literal").passed
+
+
+def test_gfm_autolink_literal_does_not_excuse_other_fields():
+    mkdocs, docusaurus = autolink_pages([link("https://wso2.com", "https://wso2.com")])
+    docusaurus[0]["code"] = ["changed"]
+    result = run(mkdocs, docusaurus, "gfm-autolink-literal")
+    assert [diff.field for diff in result.unexplained] == ["code"]
+
 # ------------------------------------------- deprecated-banner-page-removed
 
 

@@ -1,5 +1,6 @@
 """Tests for extract.py: both flavours must normalise to the same content model."""
 
+import base64
 import copy
 import hashlib
 import json
@@ -162,6 +163,16 @@ def test_docusaurus_code_reads_token_lines_with_or_without_br(tmp_path):
     expected = ["<a>\n\n</a>"]
     assert docusaurus_page(tmp_path, with_br)["code"] == expected
     assert docusaurus_page(tmp_path, with_newline)["code"] == expected
+
+
+def test_docusaurus_code_reads_div_token_lines(tmp_path):
+    """Docusaurus 3.10 renders each Prism line as ``div.token-line`` (older releases used a span)."""
+    div_lines = (
+        '<pre class="prism-code language-toml"><code class="codeBlockLines_a">'
+        '<div class="token-line"><span class="token plain">[section]</span><br></div>'
+        '<div class="token-line"><span class="token plain">key = "value"</span><br></div></code></pre>'
+    )
+    assert docusaurus_page(tmp_path, div_lines)["code"] == ['[section]\nkey = "value"']
 
 
 def test_docusaurus_copy_buttons_are_not_content(tmp_path):
@@ -370,6 +381,59 @@ def test_links_keep_fragments_and_report_existence(tmp_path):
 def test_absolute_base_prefixed_links_become_base_relative(tmp_path):
     model = docusaurus_page(tmp_path, '<p><a href="/en/latest/learn/other/">x</a></p>')
     assert model["links"][0]["target"] == "learn/other/"
+
+
+def test_inline_data_uri_images_hash_the_decoded_bytes(tmp_path):
+    """Webpack inlines small images as base64 data URIs; their bytes are still the image bytes."""
+    payload = b"tiny-png-bytes"
+    uri = "data:image/png;base64," + base64.b64encode(payload).decode("ascii")
+    model = docusaurus_page(tmp_path, f'<p><img src="{uri}" alt="Tiny"></p>')
+    assert model["images"] == [{"sha256": hashlib.sha256(payload).hexdigest(), "alt": "Tiny"}]
+
+
+def test_malformed_data_uri_image_is_marked_missing(tmp_path):
+    model = docusaurus_page(tmp_path, '<p><img src="data:image/png;base64,@@@" alt="Bad"></p>')
+    assert model["images"][0]["sha256"].startswith("MISSING:")
+
+
+def test_markdown_mirror_files_are_not_pages(tmp_path):
+    """The llms.txt plugin publishes a `.md` copy of each page; a link to a `.md` URL stays broken."""
+    (tmp_path / "learn").mkdir()
+    (tmp_path / "learn" / "policy.md").write_text("# mirror")
+    model = docusaurus_page(tmp_path, '<p><a href="/en/latest/learn/policy.md">Policy</a></p>')
+    assert model["links"] == [{"text": "Policy", "target": "learn/policy.md", "exists": False}]
+
+
+def test_site_origin_absolute_links_resolve_like_root_relative_ones(tmp_path):
+    """`https://<origin>/x` and `/x` are the same URL for a reader; with an origin both read `/x`."""
+    html = (
+        '<html><body><article><div class="theme-doc-markdown markdown">'
+        '<p><a href="https://ob.docs.wso2.com/develop/x">a</a> <a href="/develop/x">b</a> '
+        '<a href="https://ob.docs.wso2.com/en/latest/learn/y/">c</a> <a href="https://example.com/z">d</a></p>'
+        "</div></article></body></html>"
+    )
+    model = extract.extract_page(
+        html, flavor="docusaurus", path=PAGE_PATH, site_dir=tmp_path, base_url=BASE_URL,
+        site_origin="https://ob.docs.wso2.com",
+    )
+    assert [link["target"] for link in model["links"]] == [
+        "/develop/x", "/develop/x", "learn/y/", "https://example.com/z",
+    ]
+    without_origin = docusaurus_page(tmp_path, '<p><a href="https://ob.docs.wso2.com/develop/x">a</a></p>')
+    assert without_origin["links"][0]["target"] == "https://ob.docs.wso2.com/develop/x"
+
+
+def test_site_origin_must_be_a_bare_https_origin():
+    for bad in ("ob.docs.wso2.com", "https://ob.docs.wso2.com/en/", "javascript:alert(1)", "https://u@host"):
+        with pytest.raises(ValueError):
+            extract.normalise_site_origin(bad)
+    assert extract.normalise_site_origin("https://ob.docs.wso2.com/") == "https://ob.docs.wso2.com"
+
+
+def test_verify_ignore_marker_content_is_not_extracted(tmp_path):
+    """Client-side loading placeholders carry `data-verify-ignore` and are not documentation."""
+    model = docusaurus_page(tmp_path, '<p>Real</p><p data-verify-ignore="">Loading the API reference...</p>')
+    assert model["blocks"] == ["Real"]
 
 
 def test_model_is_json_serialisable_and_has_all_fields():

@@ -3,7 +3,7 @@
 # Every listed rule must explain at least one difference, otherwise compare.py fails
 # (so the list cannot go stale). Built-in rule names:
 #   placeholder-visible, ol-start, nested-list, list-not-paragraph,
-#   admonition-title-markup, deprecated-banner-page-removed
+#   admonition-title-markup, deprecated-banner-page-removed, gfm-autolink-literal
 # Built-in entries: `- name: <rule>` with an optional `pages: [...]` restriction and `reason:`.
 #
 # One entry per converter fixup, pinning the exact change (all keys required):

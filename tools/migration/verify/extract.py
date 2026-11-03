@@ -20,6 +20,8 @@ Layout of this module:
 """
 
 import argparse
+import base64
+import binascii
 import hashlib
 import logging
 import os
@@ -146,10 +148,25 @@ class ResolvedUrl(NamedTuple):
     site_path: Optional[str]
 
 
-def resolve_url(raw_url: str, page_url: str, base_url: str) -> ResolvedUrl:
-    """Resolve ``raw_url`` against ``page_url`` and express it relative to ``base_url``."""
+def normalise_site_origin(origin: str) -> str:
+    """Return a bare ``scheme://host[:port]`` origin without a trailing slash; reject anything else."""
+    parts = urlsplit(origin)
+    if (parts.scheme not in ("http", "https") or not parts.netloc or "@" in parts.netloc
+            or parts.path not in ("", "/") or parts.query or parts.fragment):
+        raise ValueError(f"--site-origin must be a bare http(s) origin such as https://ob.docs.wso2.com, got {origin!r}")
+    return f"{parts.scheme}://{parts.netloc}".lower()
+
+
+def resolve_url(raw_url: str, page_url: str, base_url: str, site_origin: Optional[str] = None) -> ResolvedUrl:
+    """Resolve ``raw_url`` against ``page_url`` and express it relative to ``base_url``.
+
+    With ``site_origin``, an absolute URL on that origin is the same URL for a reader as the matching
+    root-relative one, so it is resolved as a path (MkDocs writes ``/x``, Docusaurus needs ``https://origin/x``).
+    """
     raw_url = raw_url.strip()
     joined = urlsplit(urljoin(page_url, raw_url))
+    if site_origin and joined.scheme and f"{joined.scheme}://{joined.netloc}".lower() == site_origin:
+        joined = joined._replace(scheme="", netloc="")
     if joined.scheme or joined.netloc:
         return ResolvedUrl(raw_url, None)
     path = joined.path if joined.path.startswith("/") else "/" + joined.path  # urljoin drops the slash when ".." clamps at the root
@@ -188,6 +205,8 @@ def site_path_exists(site_dir: Path, site_path: str) -> bool:
     try:
         if site_path == "" or site_path.endswith("/"):
             return (candidate / "index.html").is_file()
+        if site_path.endswith(".md"):
+            return False  # the llms.txt plugin's per-page Markdown copies are not pages
         return (candidate.is_file() or (candidate / "index.html").is_file()
                 or candidate.with_name(candidate.name + ".html").is_file())
     except (OSError, ValueError):
@@ -321,7 +340,7 @@ class DocusaurusFlavor(Flavor):
     """Docusaurus 3 markup (``article .theme-doc-markdown``)."""
 
     name = "docusaurus"
-    noise_selectors = ("a.hash-link", "button", "svg")
+    noise_selectors = ("a.hash-link", "button", "svg", "[data-verify-ignore]")
 
     def content_root(self, soup: BeautifulSoup) -> Optional[Tag]:
         """The markdown container, which also holds the synthetic ``header > h1``."""
@@ -369,10 +388,10 @@ class DocusaurusFlavor(Flavor):
         return groups
 
     def code_text(self, pre: Tag) -> str:
-        """Join the Prism ``span.token-line`` lines (with or without trailing ``<br>``/newline)."""
+        """Join the Prism ``.token-line`` lines (``div`` since Docusaurus 3.x, ``span`` before) (with or without trailing ``<br>``/newline)."""
         for number in pre.select('[class*="codeLineNumber"]'):
             number.decompose()
-        lines = pre.select("span.token-line")
+        lines = pre.select(".token-line")
         if not lines:
             return pre.get_text()
         texts = []
@@ -472,11 +491,31 @@ def _extract_tables(root: Tag) -> List[List[List[str]]]:
     ]
 
 
-def _extract_images(root: Tag, site_dir: Path, page_url: str, base_url: str) -> List[Dict[str, str]]:
-    """One entry per ``<img>``: SHA-256 of the file bytes (or MISSING:/EXTERNAL: markers) and alt text."""
+def _sha256_of_data_uri(src: str) -> Optional[str]:
+    """SHA-256 of the bytes of a ``data:<mime>;base64,<payload>`` URI, or None when it is not valid base64."""
+    header, _, payload = src.partition(",")
+    if not header.lower().endswith(";base64"):
+        return None
+    try:
+        return hashlib.sha256(base64.b64decode(payload, validate=True)).hexdigest()
+    except (binascii.Error, ValueError):
+        return None
+
+
+def _extract_images(root: Tag, site_dir: Path, page_url: str, base_url: str,
+                    site_origin: Optional[str] = None) -> List[Dict[str, str]]:
+    """One entry per ``<img>``: SHA-256 of the file bytes (or MISSING:/EXTERNAL: markers) and alt text.
+
+    Small images that webpack inlines as base64 ``data:`` URIs are hashed from their decoded bytes.
+    """
     images = []
     for image in root.find_all("img"):
-        resolved = resolve_url(image.get("src", ""), page_url, base_url)
+        src = image.get("src", "").strip()
+        if src[:5].lower() == "data:":
+            digest = _sha256_of_data_uri(src) or "MISSING:data:invalid-uri"
+            images.append({"sha256": digest, "alt": normalise_text(image.get("alt", ""))})
+            continue
+        resolved = resolve_url(src, page_url, base_url, site_origin)
         if resolved.site_path is None:
             digest = f"EXTERNAL:{resolved.target}"
         else:
@@ -485,12 +524,13 @@ def _extract_images(root: Tag, site_dir: Path, page_url: str, base_url: str) -> 
     return images
 
 
-def _extract_links(root: Tag, site_dir: Path, page_url: str, base_url: str) -> List[Dict[str, object]]:
+def _extract_links(root: Tag, site_dir: Path, page_url: str, base_url: str,
+                   site_origin: Optional[str] = None) -> List[Dict[str, object]]:
     """One entry per ``<a href>``: text, base-relative target and whether an internal target exists."""
     links = []
     for anchor in root.find_all("a", href=True):
         href = anchor["href"]
-        resolved = resolve_url(href, page_url, base_url)
+        resolved = resolve_url(href, page_url, base_url, site_origin)
         exists = None if resolved.site_path is None else site_path_exists(site_dir, resolved.site_path)
         if urlsplit(href.strip()).scheme:  # mailto:, tel:, javascript: ... are neither files nor pages
             exists = None
@@ -505,7 +545,8 @@ def _remove(tags: Sequence[Tag]) -> None:
             tag.decompose()
 
 
-def extract_page(html: str, *, flavor: str, path: str, site_dir: Path, base_url: str) -> Optional[Dict[str, object]]:
+def extract_page(html: str, *, flavor: str, path: str, site_dir: Path, base_url: str,
+                 site_origin: Optional[str] = None) -> Optional[Dict[str, object]]:
     """Build the content model of one page.
 
     Args:
@@ -514,6 +555,7 @@ def extract_page(html: str, *, flavor: str, path: str, site_dir: Path, base_url:
         path: the page URL path relative to ``base_url`` (``""`` for the site root).
         site_dir: the built site directory, used to resolve images and links on disk.
         base_url: the URL path the site is served under, e.g. ``/en/latest/``.
+        site_origin: optional bare origin of the published site; absolute URLs on it are read as root-relative.
 
     Returns:
         The model dictionary, or None when the page has no content root (404, search, ...).
@@ -526,6 +568,7 @@ def extract_page(html: str, *, flavor: str, path: str, site_dir: Path, base_url:
         raise ValueError(f"unknown flavor {flavor!r}; expected one of {sorted(FLAVORS)}")
     rules = FLAVORS[flavor]
     base_url = normalise_base_url(base_url)
+    site_origin = normalise_site_origin(site_origin) if site_origin else None
     page_url = base_url + path
 
     root = rules.content_root(BeautifulSoup(html, "lxml"))
@@ -554,8 +597,8 @@ def extract_page(html: str, *, flavor: str, path: str, site_dir: Path, base_url:
         "tables": _extract_tables(root),
         "lists": _extract_lists(root, structural_ids),
         "admonitions": [item.model for item in admonitions],
-        "images": _extract_images(root, site_dir, page_url, base_url),
-        "links": _extract_links(root, site_dir, page_url, base_url),
+        "images": _extract_images(root, site_dir, page_url, base_url, site_origin),
+        "links": _extract_links(root, site_dir, page_url, base_url, site_origin),
         "tabs": [tab for group in tab_groups for tab in group.tabs],
     }
     return model
@@ -569,7 +612,7 @@ def page_path_for(relative_file: PurePosixPath) -> str:
     return relative_file.as_posix()
 
 
-def extract_site(site_dir: Path, flavor: str, base_url: str) -> Iterator[Dict[str, object]]:
+def extract_site(site_dir: Path, flavor: str, base_url: str, site_origin: Optional[str] = None) -> Iterator[Dict[str, object]]:
     """Yield the model of every page of a built site, in path order; pages without content are skipped."""
     site_dir = Path(site_dir)
     skipped = 0
@@ -583,7 +626,8 @@ def extract_site(site_dir: Path, flavor: str, base_url: str) -> Iterator[Dict[st
             file_path = Path(directory) / file_name
             relative = PurePosixPath(file_path.relative_to(site_dir).as_posix())
             html = file_path.read_text(encoding="utf-8")
-            model = extract_page(html, flavor=flavor, path=page_path_for(relative), site_dir=site_dir, base_url=base_url)
+            model = extract_page(html, flavor=flavor, path=page_path_for(relative), site_dir=site_dir, base_url=base_url,
+                                 site_origin=site_origin)
             if model is None:
                 skipped += 1
                 LOGGER.info("skipped page without content root file=%s", relative)
@@ -601,6 +645,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--flavor", required=True, choices=sorted(FLAVORS))
     parser.add_argument("--site", required=True, type=Path, help="directory of the built site")
     parser.add_argument("--base-url", default="/", help="URL path the site is served under (default: /)")
+    parser.add_argument("--site-origin", default=None,
+                        help="bare origin of the published site, e.g. https://ob.docs.wso2.com; absolute URLs on it "
+                             "are read as root-relative")
     return parser
 
 
@@ -615,6 +662,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 2
     try:
         normalise_base_url(args.base_url)
+        if args.site_origin:
+            normalise_site_origin(args.site_origin)
     except ValueError as error:
         LOGGER.error("%s", error)
         return 2
@@ -623,7 +672,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     seen_paths: Set[str] = set()
     count = 0
     try:
-        for model in extract_site(args.site, args.flavor, args.base_url):
+        for model in extract_site(args.site, args.flavor, args.base_url, args.site_origin):
             if model["path"] in seen_paths:
                 LOGGER.error("duplicate page path path=%s", model["path"])
                 return 1

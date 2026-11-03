@@ -98,6 +98,9 @@ function RedocViewer({specPath}: {specPath: string}) {
 /**
  * Render an OpenAPI spec from `static/internal-apis/` with the self-hosted Redoc bundle.
  *
+ * The server-rendered fallback is a loading placeholder, not documentation: `data-verify-ignore` tells the
+ * content verification harness (tools/migration/verify/extract.py) to skip it.
+ *
  * @param props.specPath Site-relative spec path, e.g. `/internal-apis/consent-internal.yaml`.
  */
 export default function RedocSpec({specPath}: {specPath: string}) {
@@ -105,7 +108,7 @@ export default function RedocSpec({specPath}: {specPath: string}) {
     throw new Error(`RedocSpec: specPath must match ${SPEC_PATH_PATTERN}, got "${specPath}"`);
   }
   return (
-    <BrowserOnly fallback={<p>Loading the API reference...</p>}>
+    <BrowserOnly fallback={<p data-verify-ignore>Loading the API reference...</p>}>
       {() => <RedocViewer specPath={specPath} />}
     </BrowserOnly>
   );

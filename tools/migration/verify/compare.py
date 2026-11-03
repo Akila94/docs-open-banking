@@ -37,6 +37,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
 from typing import Callable, Dict, FrozenSet, Iterator, List, Optional, Sequence, Tuple
+from urllib.parse import unquote
 
 import yaml
 
@@ -50,7 +51,7 @@ DEPRECATED_BANNER_PAGE = "includes/deprecated-banner/"
 PAGE_FIELD = "(page)"
 BUILTIN_RULE_NAMES = (
     "placeholder-visible", "ol-start", "nested-list", "list-not-paragraph",
-    "admonition-title-markup", "deprecated-banner-page-removed",
+    "admonition-title-markup", "deprecated-banner-page-removed", "gfm-autolink-literal",
 )
 _FIXUP_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _BUILTIN_RULE_KEYS = {"name", "reason", "pages"}
@@ -288,12 +289,45 @@ def _list_not_paragraph(field: str, mkdocs: dict, docusaurus: dict) -> bool:
     return strip_list_markers(" ".join(removed)) == collapse(" ".join(added + added_items))
 
 
+def _visible_texts(page: dict) -> List[str]:
+    """Every prose string of a page model: blocks, list items and table cells."""
+    cells = [cell for table in page["tables"] for row in table for cell in row]
+    return list(page["blocks"]) + [item for entry in page["lists"] for item in entry["items"]] + cells
+
+
+def _is_autolink_literal(link: dict) -> bool:
+    """The link text is its own URL or email address (``mailto:`` form and percent-encoding allowed)."""
+    text, target = link["text"], link["target"]
+    return bool(text) and (text == target or f"mailto:{text}" == target or unquote(target) == text)
+
+
+def _gfm_autolink_literal(field: str, mkdocs: dict, docusaurus: dict) -> bool:
+    """Only links were added, each one a bare URL/email that MkDocs already showed as plain text.
+
+    remark-gfm turns bare URLs and emails into links while MkDocs leaves them as text. The existing
+    links must be untouched and in order; every added link must read exactly like its target, and that
+    text must already have been visible in the MkDocs page (so no wording changed).
+    """
+    if field != "links":
+        return False
+    before, after = mkdocs["links"], docusaurus["links"]
+    operations = difflib.SequenceMatcher(None, [json.dumps(entry, sort_keys=True) for entry in before],
+                                         [json.dumps(entry, sort_keys=True) for entry in after],
+                                         autojunk=False).get_opcodes()
+    if any(tag not in ("equal", "insert") for tag, *_ in operations):
+        return False
+    added = [entry for tag, _, _, start, end in operations if tag == "insert" for entry in after[start:end]]
+    visible = " ".join(_visible_texts(mkdocs))
+    return bool(added) and all(_is_autolink_literal(entry) and entry["text"] in visible for entry in added)
+
+
 _FIELD_RULES: Dict[str, Callable[[str, dict, dict], bool]] = {
     "placeholder-visible": _placeholder_visible,
     "ol-start": _ol_start,
     "nested-list": _nested_list,
     "list-not-paragraph": _list_not_paragraph,
     "admonition-title-markup": _admonition_title_markup,
+    "gfm-autolink-literal": _gfm_autolink_literal,
 }
 
 
