@@ -104,24 +104,10 @@
       "reason": "missing-anchor"
     },
     {
-      "page": "/en/latest/learn/manual-client-registration-process/",
-      "attribute": "href",
-      "url": "/en/latest/learn/manual-client-registration-process.md",
-      "reason": "missing-page",
-      "note": "NOT pre-existing in MkDocs. The \"Copy page\" .md mirror is missing because docusaurus-plugin-llms-txt fails on this page (build warning: Can't parse URL https://<APIM_HOST>:9443/devportal). Fix the mirror generation, then drop this entry."
-    },
-    {
       "page": "/en/latest/tryout-flows/accelerator-with-is-and-apim/dynamic-client-registration/",
       "attribute": "href",
       "url": "/en/latest/tryout-flows/accelerator-with-is-and-apim/learn/create-policies.md",
       "reason": "missing-page"
-    },
-    {
-      "page": "/en/latest/tryout-flows/accelerator-with-is-and-apim/manual-client-registration/",
-      "attribute": "href",
-      "url": "/en/latest/tryout-flows/accelerator-with-is-and-apim/manual-client-registration.md",
-      "reason": "missing-page",
-      "note": "NOT pre-existing in MkDocs. The \"Copy page\" .md mirror is missing because docusaurus-plugin-llms-txt fails on this page (build warning: Can't parse URL https://<APIM_HOST>:9443/devportal). Fix the mirror generation, then drop this entry."
     },
     {
       "page": "/en/latest/tryout-flows/accelerator-with-is-and-apim/try-out-accounts-flow-dcr/",
