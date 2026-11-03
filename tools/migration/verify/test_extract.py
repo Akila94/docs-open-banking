@@ -190,6 +190,7 @@ def test_script_style_and_noscript_are_not_content(tmp_path):
         "<noscript><iframe src=\"https://example.com\"></iframe></noscript>",
     )
     assert model["blocks"] == ["Text"]
+    assert model["links"] == []  # an iframe inside <noscript> (the GTM fallback) is chrome, not an embed
 
 
 def test_unknown_placeholder_elements_are_transparent_in_mkdocs(tmp_path):
@@ -431,9 +432,9 @@ def test_site_origin_must_be_a_bare_https_origin():
 
 
 def test_verify_ignore_marker_content_is_not_extracted(tmp_path):
-    """Client-side loading placeholders carry `data-verify-ignore` and are not documentation."""
-    model = docusaurus_page(tmp_path, '<p>Real</p><p data-verify-ignore="">Loading the API reference...</p>')
-    assert model["blocks"] == ["Real"]
+    """The RedocSpec loading placeholder carries `data-verify-ignore` and is not documentation."""
+    model = docusaurus_page(tmp_path, '<p data-verify-ignore="">Loading the API reference...</p>')
+    assert model["blocks"] == []
 
 
 def test_mkdocs_records_onclick_location_targets_resolved_like_hrefs(tmp_path):
@@ -450,7 +451,7 @@ def test_mkdocs_records_onclick_location_targets_resolved_like_hrefs(tmp_path):
 
 def test_model_is_json_serialisable_and_has_all_fields():
     model = extract_fixture("docusaurus")
-    assert set(model) == set(extract.MODEL_FIELDS) | {"path", "onclick_targets"}
+    assert set(model) == set(extract.MODEL_FIELDS) | {"path", "onclick_targets", "flow"}
     json.dumps(copy.deepcopy(model))
 
 
@@ -464,3 +465,62 @@ def test_missing_content_root_returns_none(tmp_path):
 def test_unknown_flavor_is_rejected(tmp_path):
     with pytest.raises(ValueError):
         extract.extract_page("<html></html>", flavor="hugo", path="x/", site_dir=tmp_path, base_url="/")
+
+
+# ------------------------------------------------------------------ flow (document-order text)
+
+
+def test_flow_is_the_page_text_in_document_order_in_both_flavours(tmp_path):
+    body = "<h2>Steps</h2><p>Intro</p><ul><li>one<ul><li>nested</li></ul></li><li>two</li></ul><p>Outro</p>"
+    expected = "Steps Intro one nested two Outro"
+    assert mkdocs_page(tmp_path, body)["flow"] == expected
+    assert docusaurus_page(tmp_path, body)["flow"] == expected
+
+
+def test_flow_keeps_the_order_of_reordered_items(tmp_path):
+    first = docusaurus_page(tmp_path, "<ul><li>a</li><li>b</li></ul>")["flow"]
+    swapped = docusaurus_page(tmp_path, "<ul><li>b</li><li>a</li></ul>")["flow"]
+    assert first != swapped
+
+
+def test_flow_excludes_chrome_and_noise(tmp_path):
+    body = '<p>Text</p><button type="button">Copy</button><script>var a = 1;</script>'
+    assert docusaurus_page(tmp_path, body)["flow"] == "Text"
+
+
+# ------------------------------------------------------------------ iframe sources are compared
+
+
+def test_iframe_src_is_recorded_as_a_link_in_both_flavours(tmp_path):
+    body = '<p>Watch</p><iframe src="https://www.youtube.com/embed/abc"></iframe>'
+    for page in (mkdocs_page(tmp_path, body), docusaurus_page(tmp_path, body)):
+        assert [entry["target"] for entry in page["links"]] == ["https://www.youtube.com/embed/abc"]
+        assert page["blocks"] == ["Watch"]
+
+
+def test_a_different_iframe_src_changes_the_links(tmp_path):
+    first = docusaurus_page(tmp_path, '<iframe src="https://www.youtube.com/embed/abc"></iframe>')
+    other = docusaurus_page(tmp_path, '<iframe src="https://www.youtube.com/embed/xyz"></iframe>')
+    assert first["links"] != other["links"]
+
+
+# ------------------------------------------------------------------ data-verify-ignore is narrow
+
+REDOC_FALLBACK = '<p data-verify-ignore="true">Loading the API reference...</p>'
+
+
+def test_data_verify_ignore_is_honoured_only_on_the_redoc_fallback(tmp_path):
+    assert docusaurus_page(tmp_path, REDOC_FALLBACK)["blocks"] == []
+    assert docusaurus_page(tmp_path, REDOC_FALLBACK)["flow"] == ""
+
+
+@pytest.mark.parametrize("body", [
+    '<p>Text</p><p data-verify-ignore="true">Hidden claim</p>',                       # not the sole child
+    '<p data-verify-ignore="true">Some other text</p>',                                # not the placeholder text
+    '<div data-verify-ignore="true"><p>Loading the API reference...</p></div>',        # not a paragraph
+    '<p data-verify-ignore="true">Loading the API reference...</p><p>More</p>',        # not alone
+])
+def test_data_verify_ignore_elsewhere_stays_visible(tmp_path, body):
+    page = docusaurus_page(tmp_path, body)
+    assert "Loading the API reference..." in page["flow"] or "Hidden claim" in page["flow"] or "Some other text" in page["flow"]
+    assert page["flow"] != ""

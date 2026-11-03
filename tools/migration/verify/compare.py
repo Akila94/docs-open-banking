@@ -38,6 +38,7 @@ import difflib
 import itertools
 import json
 import logging
+import math
 import re
 import sys
 from collections import Counter, defaultdict
@@ -73,7 +74,8 @@ _CHANGE_KEYS = {"field", "op", "index", "value", "from", "to"}
 _CHANGE_OPS = ("replace", "insert", "delete")
 # `<IDENT>` placeholders and generic-type text such as `<String, JSONObject>`; nothing else.
 _PLACEHOLDER_TOKEN = re.compile(r"<[A-Za-z_][A-Za-z0-9_]*(?:, [A-Za-z_][A-Za-z0-9_]*)*>")
-_MAX_TOKEN_OCCURRENCES = 12
+# Upper bound on the ways of choosing which surplus placeholder occurrences to remove.
+_MAX_REMOVAL_CANDIDATES = 4096
 _LIST_MARKER = re.compile(r"(?<!\S)(?:[-*+•]|\d+[.)])(?=\s|$)")
 _MAX_DIFF_LINES = 40
 
@@ -162,9 +164,12 @@ def placeholder_removals(docusaurus_text: str, mkdocs_text: str) -> Iterator[str
     occurrences: Dict[str, list] = defaultdict(list)
     for match in _PLACEHOLDER_TOKEN.finditer(docusaurus_text):
         occurrences[match.group()].append(match)
-    if sum(len(found) for found in occurrences.values()) > _MAX_TOKEN_OCCURRENCES:
-        return
     if any(len(occurrences[token]) < count for token, count in mkdocs_tokens.items()):
+        return
+    candidate_count = math.prod(
+        math.comb(len(found), len(found) - mkdocs_tokens.get(token, 0)) for token, found in occurrences.items()
+    )
+    if candidate_count > _MAX_REMOVAL_CANDIDATES:
         return
     choices = [
         itertools.combinations(found, len(found) - mkdocs_tokens.get(token, 0))
@@ -404,29 +409,33 @@ def _onclick_card_link(field: str, mkdocs: dict, docusaurus: dict) -> bool:
     return all(entry["target"].rstrip("/") in targets and collapse(entry["text"]) in visible for entry in added)
 
 
-def _list_words(page: dict, with_blocks: bool) -> Counter:
-    """Word counts of all list item text (all depths), list markers stripped; optionally plus the paragraphs.
+def _flow_preserved(mkdocs: dict, docusaurus: dict) -> bool:
+    """True when the page text reads the same, in document order, on both sides.
 
-    ``<IDENT>`` placeholders are dropped (MkDocs swallows them; ``placeholder-visible`` accounts for them).
+    ``flow`` is the whole content root flattened in document order (see ``extract.py``). List markers are
+    stripped and whitespace normalised on both sides. Placeholder tokens (``<IDENT>``) that only Docusaurus
+    shows may be removed from the Docusaurus flow, never added or lost (``placeholder_removals``). A model
+    without a ``flow`` (an older extraction) is never accepted.
     """
-    texts = [item for entry in page["lists"] for item in entry["items"]] + (page["blocks"] if with_blocks else [])
-    return Counter(strip_list_markers(_PLACEHOLDER_TOKEN.sub("", " ".join(texts))).split())
+    mkdocs_flow, docusaurus_flow = mkdocs.get("flow"), docusaurus.get("flow")
+    if not isinstance(mkdocs_flow, str) or not isinstance(docusaurus_flow, str):
+        return False
+    expected = strip_list_markers(mkdocs_flow)
+    return any(strip_list_markers(candidate) == expected for candidate in placeholder_removals(docusaurus_flow, mkdocs_flow))
 
 
 def _list_restructure_text_preserved(field: str, mkdocs: dict, docusaurus: dict) -> bool:
-    """Lists were restructured (nesting depth, item boundaries, ``start``) without changing any text.
+    """Lists were restructured (nesting depth, item boundaries, ``start``) without changing any text or its order.
 
-    The item text of all lists of the page (all depths, markers stripped, whitespace normalised) must read
-    the same on both sides. The model lists nested lists after their parent, so the ORDER of items cannot be
-    judged from it: words are compared as counts. When paragraphs became list items, ``blocks`` and ``lists``
-    are judged together (the text moved between them) and ``blocks`` may only differ when ``lists`` does too.
+    Judged on the page's ``flow``: the whole content text in document order, list markers stripped,
+    whitespace normalised. Reordering words, sentences or items, or moving text between a paragraph and a
+    list in a way that changes the reading order, fails. Only ``lists`` and ``blocks`` are claimed, and
+    ``blocks`` only when ``lists`` differ too (a paragraph-only change is not a list restructure).
     """
     if field == "lists":
-        if mkdocs["blocks"] != docusaurus["blocks"]:
-            return _list_words(mkdocs, True) == _list_words(docusaurus, True)
-        return _list_words(mkdocs, False) == _list_words(docusaurus, False)
+        return _flow_preserved(mkdocs, docusaurus)
     if field == "blocks":
-        return mkdocs["lists"] != docusaurus["lists"] and _list_words(mkdocs, True) == _list_words(docusaurus, True)
+        return mkdocs["lists"] != docusaurus["lists"] and _flow_preserved(mkdocs, docusaurus)
     return False
 
 

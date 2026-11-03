@@ -41,6 +41,8 @@ MODEL_FIELDS = (
     "title", "headings", "blocks", "code", "tables", "lists",
     "admonitions", "images", "links", "tabs",
 )
+# Evidence carried in each page model that is not a compared field: ``onclick_targets`` (read by the
+# onclick-card-link rule) and ``flow`` (read by the list-restructure-text-preserved rule).
 
 # Characters that never carry content: pilcrow permalinks and zero-width characters.
 _STRIPPED_CHARACTERS = dict.fromkeys(
@@ -268,6 +270,10 @@ class Flavor:
         """Return every tab group under ``root`` in document order."""
         raise NotImplementedError
 
+    def ignorable_elements(self, root: Tag) -> List[Tag]:
+        """Return elements that are verification scaffolding, not content (none by default)."""
+        return []
+
     def code_text(self, pre: Tag) -> str:
         """Return the raw text of a ``<pre>`` code block (before ``finalise_code``)."""
         raise NotImplementedError
@@ -340,7 +346,25 @@ class DocusaurusFlavor(Flavor):
     """Docusaurus 3 markup (``article .theme-doc-markdown``)."""
 
     name = "docusaurus"
-    noise_selectors = ("a.hash-link", "button", "svg", "[data-verify-ignore]")
+    noise_selectors = ("a.hash-link", "button", "svg")
+    #: The loading placeholder that ``RedocSpec`` renders on the server (src/components/RedocSpec).
+    REDOC_FALLBACK_TEXT = "Loading the API reference..."
+
+    def ignorable_elements(self, root: Tag) -> List[Tag]:
+        """The ``RedocSpec`` server-rendered fallback, and nothing else.
+
+        ``data-verify-ignore`` is honoured only on a ``<p>`` that is the sole element of the content root
+        and reads exactly the placeholder text. Anywhere else the attribute hides nothing, so content
+        cannot be dropped from the comparison by carrying it.
+        """
+        children = _direct_children(root)
+        if len(children) != 1:
+            return []
+        fallback = children[0]
+        if (fallback.name == "p" and fallback.has_attr("data-verify-ignore")
+                and flatten_text(fallback) == self.REDOC_FALLBACK_TEXT):
+            return [fallback]
+        return []
 
     def content_root(self, soup: BeautifulSoup) -> Optional[Tag]:
         """The markdown container, which also holds the synthetic ``header > h1``."""
@@ -524,18 +548,37 @@ def _extract_images(root: Tag, site_dir: Path, page_url: str, base_url: str,
     return images
 
 
+def _link_entry(text: str, href: str, site_dir: Path, page_url: str, base_url: str,
+                site_origin: Optional[str]) -> Dict[str, object]:
+    """One ``links`` entry: text, base-relative target and whether an internal target exists."""
+    resolved = resolve_url(href, page_url, base_url, site_origin)
+    exists = None if resolved.site_path is None else site_path_exists(site_dir, resolved.site_path)
+    if urlsplit(href.strip()).scheme:  # mailto:, tel:, javascript: ... are neither files nor pages
+        exists = None
+    return {"text": text, "target": resolved.target, "exists": exists}
+
+
 def _extract_links(root: Tag, site_dir: Path, page_url: str, base_url: str,
                    site_origin: Optional[str] = None) -> List[Dict[str, object]]:
     """One entry per ``<a href>``: text, base-relative target and whether an internal target exists."""
-    links = []
-    for anchor in root.find_all("a", href=True):
-        href = anchor["href"]
-        resolved = resolve_url(href, page_url, base_url, site_origin)
-        exists = None if resolved.site_path is None else site_path_exists(site_dir, resolved.site_path)
-        if urlsplit(href.strip()).scheme:  # mailto:, tel:, javascript: ... are neither files nor pages
-            exists = None
-        links.append({"text": flatten_text(anchor), "target": resolved.target, "exists": exists})
-    return links
+    return [
+        _link_entry(flatten_text(anchor), anchor["href"], site_dir, page_url, base_url, site_origin)
+        for anchor in root.find_all("a", href=True)
+    ]
+
+
+def _extract_iframe_links(root: Tag, site_dir: Path, page_url: str, base_url: str,
+                          site_origin: Optional[str] = None) -> List[Dict[str, object]]:
+    """One entry per ``<iframe src>`` (empty text), in document order.
+
+    Iframes are dropped from the text as noise, so their ``src`` is the only record of an embed; call
+    this before the noise is removed. Iframes inside ``<noscript>`` (the tag manager fallback) are chrome.
+    """
+    return [
+        _link_entry("", frame["src"], site_dir, page_url, base_url, site_origin)
+        for frame in root.find_all("iframe", src=True)
+        if frame.find_parent("noscript") is None
+    ]
 
 
 _ONCLICK_LOCATION = re.compile(r"""\blocation(?:\.href)?\s*=\s*(['"])(.*?)\1""")
@@ -590,6 +633,9 @@ def extract_page(html: str, *, flavor: str, path: str, site_dir: Path, base_url:
     root = rules.content_root(BeautifulSoup(html, "lxml"))
     if root is None:
         return None
+    # Iframes are noise for the text but their src is content: record it before they are removed.
+    iframe_links = _extract_iframe_links(root, site_dir, page_url, base_url, site_origin)
+    _remove(rules.ignorable_elements(root))
     for selector in _COMMON_NOISE_SELECTORS + rules.noise_selectors:
         _remove(root.select(selector))
 
@@ -605,6 +651,10 @@ def extract_page(html: str, *, flavor: str, path: str, site_dir: Path, base_url:
     for chrome in [c for item in admonitions for c in item.chrome] + [c for group in tab_groups for c in group.chrome]:
         _remove([chrome])
 
+    # After chrome and noise removal and before any extractor touches the tree: the page text in
+    # document order, the evidence of the list-restructure-text-preserved rule.
+    flow = flatten_text(root)
+
     model: Dict[str, object] = {
         "path": path,
         "title": next((entry[1] for entry in headings if entry[0] == 1), ""),
@@ -615,9 +665,10 @@ def extract_page(html: str, *, flavor: str, path: str, site_dir: Path, base_url:
         "lists": _extract_lists(root, structural_ids),
         "admonitions": [item.model for item in admonitions],
         "images": _extract_images(root, site_dir, page_url, base_url, site_origin),
-        "links": _extract_links(root, site_dir, page_url, base_url, site_origin),
+        "links": _extract_links(root, site_dir, page_url, base_url, site_origin) + iframe_links,
         "tabs": [tab for group in tab_groups for tab in group.tabs],
         "onclick_targets": onclick_targets,  # not compared as a field; evidence for the onclick-card-link rule
+        "flow": flow,  # not compared as a field; evidence for the list-restructure-text-preserved rule
     }
     return model
 

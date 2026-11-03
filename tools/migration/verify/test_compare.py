@@ -412,38 +412,82 @@ def bullet_list(items, depth=0):
     return {"ordered": False, "start": None, "depth": depth, "items": items}
 
 
+LIST_RULE = compare.Rule(name="list-restructure-text-preserved", pages=frozenset({PAGE_PATH}))
+
+
 def test_list_restructure_accepts_same_text_with_other_depth_and_boundaries():
-    mkdocs = [make_page(lists=[bullet_list(["Engage - A - B", "Next"])])]
-    docusaurus = [make_page(lists=[bullet_list(["Engage", "Next"]), bullet_list(["A", "B"], depth=1)])]
-    pinned = compare.Rule(name="list-restructure-text-preserved", pages=frozenset({PAGE_PATH}))
+    flow = "Engage A B Next"
+    mkdocs = [make_page(lists=[bullet_list(["Engage - A - B", "Next"])], flow=flow)]
+    docusaurus = [make_page(lists=[bullet_list(["Engage", "Next"]), bullet_list(["A", "B"], depth=1)], flow=flow)]
     assert not run_with([], mkdocs, docusaurus).passed
-    assert run_with([pinned], mkdocs, docusaurus).passed
+    assert run_with([LIST_RULE], mkdocs, docusaurus).passed
+
+
+def test_list_restructure_strips_markers_and_normalises_whitespace_in_the_flow():
+    mkdocs = [make_page(blocks=["- Open", "2. Save"], flow="- Open   2. Save")]
+    docusaurus = [make_page(lists=[bullet_list(["Open", "Save"])], flow="Open Save")]
+    assert run_with([LIST_RULE], mkdocs, docusaurus).passed
 
 
 def test_list_restructure_covers_paragraphs_that_moved_into_the_lists():
-    mkdocs = [make_page(blocks=["2. Open the file", "3. Save it"], lists=[bullet_list(["Note"])])]
-    docusaurus = [make_page(blocks=[], lists=[bullet_list(["Open the file", "Save it"]), bullet_list(["Note"], depth=1)])]
-    pinned = compare.Rule(name="list-restructure-text-preserved", pages=frozenset({PAGE_PATH}))
-    assert run_with([pinned], mkdocs, docusaurus).passed
-    lost = [make_page(blocks=[], lists=[bullet_list(["Open the file"]), bullet_list(["Note"], depth=1)])]
-    assert not run_with([pinned], mkdocs, lost).passed
+    mkdocs = [make_page(blocks=["2. Open the file", "3. Save it"], lists=[bullet_list(["Note"])],
+                        flow="2. Open the file 3. Save it Note")]
+    docusaurus = [make_page(blocks=[], lists=[bullet_list(["Open the file", "Save it"]), bullet_list(["Note"], depth=1)],
+                            flow="Open the file Save it Note")]
+    assert run_with([LIST_RULE], mkdocs, docusaurus).passed
+    lost = [make_page(blocks=[], lists=[bullet_list(["Open the file"]), bullet_list(["Note"], depth=1)],
+                      flow="Open the file Note")]
+    assert not run_with([LIST_RULE], mkdocs, lost).passed
     # a paragraph change with unchanged lists is not a list restructure
-    assert not run_with([pinned], [make_page(blocks=["a b"])], [make_page(blocks=["b a"])]).passed
+    assert not run_with([LIST_RULE], [make_page(blocks=["a b"], flow="a b")], [make_page(blocks=["b a"], flow="b a")]).passed
+
+
+def test_list_restructure_rejects_reordered_items():
+    mkdocs = [make_page(lists=[bullet_list(["first", "second", "third"])], flow="first second third")]
+    swapped = [make_page(lists=[bullet_list(["first", "third", "second"])], flow="first third second")]
+    assert not run_with([LIST_RULE], mkdocs, swapped).passed
+
+
+def test_list_restructure_rejects_reordering_across_a_restructure():
+    # the same words and counts, but a nested item moved before its parent
+    mkdocs = [make_page(lists=[bullet_list(["Engage - A - B", "Next"])], flow="Engage A B Next")]
+    moved = [make_page(lists=[bullet_list(["Engage", "Next"]), bullet_list(["B", "A"], depth=1)], flow="Engage B A Next")]
+    assert not run_with([LIST_RULE], mkdocs, moved).passed
+
+
+def test_list_restructure_rejects_text_moving_between_a_paragraph_and_a_list():
+    mkdocs = [make_page(blocks=["intro"], lists=[bullet_list(["a", "b"])], flow="intro a b")]
+    moved = [make_page(blocks=[], lists=[bullet_list(["intro", "a"]), bullet_list(["b"], depth=1)], flow="a intro b")]
+    assert not run_with([LIST_RULE], mkdocs, moved).passed
 
 
 def test_list_restructure_ignores_placeholder_tokens_shown_only_by_docusaurus():
-    mkdocs = [make_page(blocks=["Open /bin"], lists=[bullet_list(["Run it - in /conf"])])]
-    docusaurus = [make_page(blocks=["Open <IS_HOME>/bin"], lists=[bullet_list(["Run it"]), bullet_list(["in <IS_HOME>/conf"], depth=1)])]
-    pinned = compare.Rule(name="list-restructure-text-preserved", pages=frozenset({PAGE_PATH}))
-    assert run_with([pinned, compare.Rule(name="placeholder-visible")], mkdocs, docusaurus).passed
+    mkdocs = [make_page(blocks=["Open /bin"], lists=[bullet_list(["Run it - in /conf"])],
+                        flow="Open /bin Run it in /conf")]
+    docusaurus = [make_page(blocks=["Open <IS_HOME>/bin"],
+                            lists=[bullet_list(["Run it"]), bullet_list(["in <IS_HOME>/conf"], depth=1)],
+                            flow="Open <IS_HOME>/bin Run it in <IS_HOME>/conf")]
+    assert run_with([LIST_RULE, compare.Rule(name="placeholder-visible")], mkdocs, docusaurus).passed
+
+
+def test_list_restructure_rejects_a_placeholder_lost_from_the_flow():
+    mkdocs = [make_page(lists=[bullet_list(["Open <IS_HOME>/bin"])], flow="Open <IS_HOME>/bin")]
+    docusaurus = [make_page(lists=[bullet_list(["Open"]), bullet_list(["/bin"], depth=1)], flow="Open /bin")]
+    assert not run_with([LIST_RULE], mkdocs, docusaurus).passed
+
+
+def test_list_restructure_fails_closed_without_a_flow():
+    mkdocs = [make_page(lists=[bullet_list(["a b"])])]
+    docusaurus = [make_page(lists=[bullet_list(["a"]), bullet_list(["b"], depth=1)])]
+    assert not run_with([LIST_RULE], mkdocs, docusaurus).passed
 
 
 def test_list_restructure_rejects_changed_text_and_other_pages():
-    mkdocs = [make_page(lists=[bullet_list(["a b"])]), make_page("other/", lists=[bullet_list(["a b"])])]
-    docusaurus = [make_page(lists=[bullet_list(["a"]), bullet_list(["b changed"], depth=1)]),
-                  make_page("other/", lists=[bullet_list(["a"]), bullet_list(["b"], depth=1)])]
-    pinned = compare.Rule(name="list-restructure-text-preserved", pages=frozenset({PAGE_PATH}))
-    result = run_with([pinned], mkdocs, docusaurus)
+    mkdocs = [make_page(lists=[bullet_list(["a b"])], flow="a b"),
+              make_page("other/", lists=[bullet_list(["a b"])], flow="a b")]
+    docusaurus = [make_page(lists=[bullet_list(["a"]), bullet_list(["b changed"], depth=1)], flow="a b changed"),
+                  make_page("other/", lists=[bullet_list(["a"]), bullet_list(["b"], depth=1)], flow="a b")]
+    result = run_with([LIST_RULE], mkdocs, docusaurus)
     assert {diff.path for diff in result.unexplained} == {PAGE_PATH, "other/"}
 
 
@@ -616,3 +660,22 @@ def test_script_runs_isolated_from_the_command_line(tmp_path):
         capture_output=True, text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_placeholder_removals_handles_many_tokens_present_on_both_sides():
+    """Tokens MkDocs also shows (e.g. inside code) are not surplus, however many there are."""
+    text = " ".join(f"<HOST_{i}>" for i in range(30)) + " end"
+    assert list(compare.placeholder_removals(text, text)) == [text]
+
+
+def test_placeholder_removals_gives_up_when_the_surplus_is_ambiguous_beyond_the_cap():
+    docusaurus = " ".join("<X>" for _ in range(40))
+    mkdocs = " ".join("<X>" for _ in range(20))
+    assert list(compare.placeholder_removals(docusaurus, mkdocs)) == []
+
+
+def test_list_restructure_accepts_a_page_with_many_placeholders_in_both_flows():
+    flow = " ".join(f"<HOST_{i}>" for i in range(30)) + " a b"
+    mkdocs = [make_page(lists=[bullet_list(["a - b"])], flow=flow)]
+    docusaurus = [make_page(lists=[bullet_list(["a"]), bullet_list(["b"], depth=1)], flow=flow)]
+    assert run_with([LIST_RULE], mkdocs, docusaurus).passed
