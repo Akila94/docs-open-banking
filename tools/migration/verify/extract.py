@@ -538,6 +538,22 @@ def _extract_links(root: Tag, site_dir: Path, page_url: str, base_url: str,
     return links
 
 
+_ONCLICK_LOCATION = re.compile(r"""\blocation(?:\.href)?\s*=\s*(['"])(.*?)\1""")
+
+
+def _extract_onclick_targets(root: Tag, page_url: str, base_url: str, site_origin: Optional[str]) -> List[str]:
+    """Targets of ``onclick="location.href='...'"`` handlers (cards), resolved like hrefs, in document order.
+
+    Never executed, only read; handlers that do anything else are ignored.
+    """
+    targets = []
+    for element in root.find_all(attrs={"onclick": True}):
+        match = _ONCLICK_LOCATION.search(element["onclick"])
+        if match:
+            targets.append(resolve_url(match.group(2), page_url, base_url, site_origin).target)
+    return targets
+
+
 def _remove(tags: Sequence[Tag]) -> None:
     """Decompose tags, tolerating ones already removed together with an ancestor."""
     for tag in tags:
@@ -577,6 +593,7 @@ def extract_page(html: str, *, flavor: str, path: str, site_dir: Path, base_url:
     for selector in _COMMON_NOISE_SELECTORS + rules.noise_selectors:
         _remove(root.select(selector))
 
+    onclick_targets = _extract_onclick_targets(root, page_url, base_url, site_origin)
     headings = [
         [int(heading.name[1]), flatten_text(heading), heading.get("id", "")]
         for heading in root.find_all(list(_HEADING_NAMES))
@@ -600,6 +617,7 @@ def extract_page(html: str, *, flavor: str, path: str, site_dir: Path, base_url:
         "images": _extract_images(root, site_dir, page_url, base_url, site_origin),
         "links": _extract_links(root, site_dir, page_url, base_url, site_origin),
         "tabs": [tab for group in tab_groups for tab in group.tabs],
+        "onclick_targets": onclick_targets,  # not compared as a field; evidence for the onclick-card-link rule
     }
     return model
 

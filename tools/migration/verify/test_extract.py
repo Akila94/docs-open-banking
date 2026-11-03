@@ -436,9 +436,21 @@ def test_verify_ignore_marker_content_is_not_extracted(tmp_path):
     assert model["blocks"] == ["Real"]
 
 
+def test_mkdocs_records_onclick_location_targets_resolved_like_hrefs(tmp_path):
+    """Cards that navigate with `onclick="location.href='...'"` are links in spirit; record their targets."""
+    model = mkdocs_page(
+        tmp_path,
+        "<div class=\"card\" onclick=\"location.href='../other/';\">A</div>"
+        "<div onclick='location.href=\"/en/latest/learn/y\"'>B</div>"
+        "<div onclick=\"doSomething()\">C</div><div onclick=\"location.href='https://example.com/z'\">D</div>",
+    )
+    assert model["onclick_targets"] == ["learn/other/", "learn/y", "https://example.com/z"]
+    assert docusaurus_page(tmp_path, "<p>x</p>")["onclick_targets"] == []
+
+
 def test_model_is_json_serialisable_and_has_all_fields():
     model = extract_fixture("docusaurus")
-    assert set(model) == set(extract.MODEL_FIELDS) | {"path"}
+    assert set(model) == set(extract.MODEL_FIELDS) | {"path", "onclick_targets"}
     json.dumps(copy.deepcopy(model))
 
 

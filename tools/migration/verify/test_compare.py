@@ -254,6 +254,45 @@ def test_gfm_autolink_literal_does_not_excuse_other_fields():
     result = run(mkdocs, docusaurus, "gfm-autolink-literal")
     assert [diff.field for diff in result.unexplained] == ["code"]
 
+
+# ------------------------------------------------------------ onclick-card-link
+
+
+HOME = ""
+
+
+def card_pages(added, targets=("get-started/quick/", "learn/a"), path=HOME, blocks=("Quick Start Set up", "Consent Manage")):
+    """MkDocs cards navigate through onclick; Docusaurus renders anchors with the same targets."""
+    mkdocs = make_page(path, blocks=list(blocks))
+    mkdocs["onclick_targets"] = list(targets)
+    docusaurus = make_page(path, blocks=list(blocks), links=list(added))
+    return [mkdocs], [docusaurus]
+
+
+def test_onclick_card_link_explains_added_links_with_recorded_targets_on_the_home_page():
+    mkdocs, docusaurus = card_pages([link("Quick Start Set up", "get-started/quick/", True),
+                                     link("Consent Manage", "learn/a/", True)])
+    assert not run(mkdocs, docusaurus).passed
+    assert run(mkdocs, docusaurus, "onclick-card-link").passed
+
+
+def test_onclick_card_link_rejects_unrecorded_target_other_text_or_other_page():
+    mkdocs, docusaurus = card_pages([link("Quick Start Set up", "learn/other/", True)])
+    assert not run(mkdocs, docusaurus, "onclick-card-link").passed
+    mkdocs, docusaurus = card_pages([link("Brand new words", "get-started/quick/", True)])
+    assert not run(mkdocs, docusaurus, "onclick-card-link").passed
+    mkdocs, docusaurus = card_pages([link("Quick Start Set up", "get-started/quick/", True)], path="learn/x/")
+    assert not run(mkdocs, docusaurus, "onclick-card-link").passed
+
+
+def test_onclick_card_link_does_not_excuse_removed_links_or_other_fields():
+    mkdocs, docusaurus = card_pages([link("Quick Start Set up", "get-started/quick/", True)])
+    mkdocs[0]["links"] = [link("Gone", "learn/gone/", True)]
+    assert not run(mkdocs, docusaurus, "onclick-card-link").passed
+    mkdocs, docusaurus = card_pages([link("Quick Start Set up", "get-started/quick/", True)])
+    docusaurus[0]["code"] = ["x"]
+    assert [d.field for d in run(mkdocs, docusaurus, "onclick-card-link").unexplained] == ["code"]
+
 # ------------------------------------------- deprecated-banner-page-removed
 
 
@@ -268,12 +307,16 @@ def test_deprecated_banner_page_may_be_absent_only_when_listed():
 # ------------------------------------------------------------------ fixups
 
 
-def fixup(**overrides):
-    """A pinned fixup rule for the sample page."""
-    options = {"name": "fixup:typo-1", "pages": frozenset({PAGE_PATH}), "field": "blocks",
-               "replace_from": "teh", "replace_to": "the", "reason": "typo"}
+def change(**overrides):
+    """A pinned change; defaults to replacing `teh` by `the` in the first block."""
+    options = {"field": "blocks", "op": "replace", "index": 0, "replace_from": "teh", "replace_to": "the"}
     options.update(overrides)
-    return compare.Rule(**options)
+    return compare.Change(**options)
+
+
+def fixup(*changes, name="fixup:typo-1", pages=frozenset({PAGE_PATH})):
+    """A pinned fixup rule for the sample page."""
+    return compare.Rule(name=name, pages=pages, reason="typo", changes=tuple(changes or (change(),)))
 
 
 def run_with(rules, mkdocs, docusaurus):
@@ -283,7 +326,7 @@ def run_with(rules, mkdocs, docusaurus):
     )
 
 
-def test_fixup_pinned_change_passes_only_on_its_page():
+def test_fixup_pinned_replace_passes_only_on_its_page():
     mkdocs = [make_page(blocks=["Fix teh typo", "same"]), make_page("other/", blocks=["Fix teh typo"])]
     docusaurus = [make_page(blocks=["Fix the typo", "same"]), make_page("other/", blocks=["Fix the typo"])]
     result = run_with([fixup()], mkdocs, docusaurus)
@@ -291,45 +334,145 @@ def test_fixup_pinned_change_passes_only_on_its_page():
     assert result.rule_counts == {"fixup:typo-1": 1}
 
 
-def test_fixup_rejects_extra_unrelated_change_in_the_same_field():
-    mkdocs = [make_page(blocks=["Fix teh typo"])]
-    docusaurus = [make_page(blocks=["Fix the typo and add more words"])]
-    result = run_with([fixup()], mkdocs, docusaurus)
-    assert not result.passed and result.unexplained[0].field == "blocks"
-
-
-def test_fixup_rejects_extra_changed_element_in_a_list_field():
+def test_fixup_rejects_leftover_differences():
     mkdocs = [make_page(blocks=["Fix teh typo", "second"])]
-    docusaurus = [make_page(blocks=["Fix the typo", "second changed"])]
-    assert not run_with([fixup()], mkdocs, docusaurus).passed
+    assert not run_with([fixup()], mkdocs, [make_page(blocks=["Fix the typo and more", "second"])]).passed
+    assert not run_with([fixup()], mkdocs, [make_page(blocks=["Fix the typo", "second changed"])]).passed
     assert not run_with([fixup()], mkdocs, [make_page(blocks=["Fix the typo"])]).passed
 
 
-def test_fixup_whose_from_text_does_not_occur_is_unexplained_and_unused():
-    mkdocs = [make_page(blocks=["Fix this typo"])]
-    docusaurus = [make_page(blocks=["Fix that typo"])]
+def test_fixup_op_that_does_not_apply_fails_and_is_unused():
+    mkdocs, docusaurus = [make_page(blocks=["Fix this typo"])], [make_page(blocks=["Fix that typo"])]
     result = run_with([fixup()], mkdocs, docusaurus)
     assert not result.passed
     assert result.unused_rules == ["fixup:typo-1"] and result.unexplained
-
-
-def test_fixup_requires_exactly_one_occurrence_and_the_right_field():
     twice = run_with([fixup()], [make_page(blocks=["teh and teh"])], [make_page(blocks=["the and the"])])
     assert not twice.passed
-    wrong_field = run_with([fixup(field="title")], [make_page(blocks=["teh"])], [make_page(blocks=["the"])])
-    assert not wrong_field.passed
+    assert not run_with([fixup(change(index=5))], [make_page(blocks=["teh"])], [make_page(blocks=["the"])]).passed
+
+
+def test_fixup_insert_and_delete_with_indexes_across_fields():
+    mkdocs = [make_page(blocks=["a", "b"], code=["old code"], tables=[])]
+    docusaurus = [make_page(blocks=["a", "new", "b"], code=[], tables=[[["h"], ["v"]]])]
+    rule = fixup(
+        change(field="blocks", op="insert", index=1, replace_from=None, replace_to=None, value="new"),
+        change(field="code", op="delete", index=0, replace_from=None, replace_to=None, value="old code"),
+        change(field="tables", op="insert", index=0, replace_from=None, replace_to=None, value=[["h"], ["v"]]),
+    )
+    result = run_with([rule], mkdocs, docusaurus)
+    assert result.passed
+    assert result.rule_counts == {"fixup:typo-1": 3}
+    append = fixup(change(field="blocks", op="insert", index=2, replace_from=None, replace_to=None, value="tail"))
+    assert run_with([append], [make_page(blocks=["a", "b"])], [make_page(blocks=["a", "b", "tail"])]).passed
+
+
+def test_fixup_delete_must_match_the_deleted_value_and_inserts_keep_order():
+    wrong = fixup(change(field="blocks", op="delete", index=0, replace_from=None, replace_to=None, value="other"))
+    assert not run_with([wrong], [make_page(blocks=["a"])], [make_page(blocks=[])]).passed
+    two = fixup(
+        change(field="blocks", op="insert", index=0, replace_from=None, replace_to=None, value="x"),
+        change(field="blocks", op="insert", index=0, replace_from=None, replace_to=None, value="y"),
+    )
+    assert run_with([two], [make_page(blocks=[])], [make_page(blocks=["x", "y"])]).passed
+    assert not run_with([two], [make_page(blocks=[])], [make_page(blocks=["y", "x"])]).passed
+
+
+def test_several_fixup_entries_on_one_page_are_applied_together():
+    first = fixup(change(), name="fixup:one")
+    second = fixup(change(index=1, replace_from="wrng", replace_to="right"), name="fixup:two")
+    result = run_with([first, second], [make_page(blocks=["teh", "wrng"])], [make_page(blocks=["the", "right"])])
+    assert result.passed and result.rule_counts == {"fixup:one": 1, "fixup:two": 1}
+
+
+def test_fixup_leaves_the_remainder_to_builtin_rules():
+    mkdocs = [make_page(blocks=["teh", "Open /bin"], code=[])]
+    docusaurus = [make_page(blocks=["the", "Open <IS_HOME>/bin"], code=[])]
+    assert not run_with([fixup()], mkdocs, docusaurus).passed
+    result = run_with([fixup(), compare.Rule(name="placeholder-visible")], mkdocs, docusaurus)
+    assert result.passed and result.rule_counts == {"fixup:typo-1": 1, "placeholder-visible": 1}
 
 
 def test_fixup_on_scalar_and_structured_fields():
-    title = run_with([fixup(field="title", replace_from="Old", replace_to="New")],
+    title = run_with([fixup(change(field="title", index=None, replace_from="Old", replace_to="New"))],
                      [make_page(title="Old name")], [make_page(title="New name")])
     assert title.passed
     admonition = {"kind": "details", "type": "tip", "title": "x", "open": False}
     structured = run_with(
-        [fixup(field="admonitions", replace_from='"type":"tip"', replace_to='"type":"note"')],
+        [fixup(change(field="admonitions", replace_from='"type":"tip"', replace_to='"type":"note"'))],
         [make_page(admonitions=[admonition])], [make_page(admonitions=[{**admonition, "type": "note"}])],
     )
     assert structured.passed
+
+
+# ------------------------------------------------ list-restructure-text-preserved
+
+
+def bullet_list(items, depth=0):
+    """A list model entry for a bullet list."""
+    return {"ordered": False, "start": None, "depth": depth, "items": items}
+
+
+def test_list_restructure_accepts_same_text_with_other_depth_and_boundaries():
+    mkdocs = [make_page(lists=[bullet_list(["Engage - A - B", "Next"])])]
+    docusaurus = [make_page(lists=[bullet_list(["Engage", "Next"]), bullet_list(["A", "B"], depth=1)])]
+    pinned = compare.Rule(name="list-restructure-text-preserved", pages=frozenset({PAGE_PATH}))
+    assert not run_with([], mkdocs, docusaurus).passed
+    assert run_with([pinned], mkdocs, docusaurus).passed
+
+
+def test_list_restructure_covers_paragraphs_that_moved_into_the_lists():
+    mkdocs = [make_page(blocks=["2. Open the file", "3. Save it"], lists=[bullet_list(["Note"])])]
+    docusaurus = [make_page(blocks=[], lists=[bullet_list(["Open the file", "Save it"]), bullet_list(["Note"], depth=1)])]
+    pinned = compare.Rule(name="list-restructure-text-preserved", pages=frozenset({PAGE_PATH}))
+    assert run_with([pinned], mkdocs, docusaurus).passed
+    lost = [make_page(blocks=[], lists=[bullet_list(["Open the file"]), bullet_list(["Note"], depth=1)])]
+    assert not run_with([pinned], mkdocs, lost).passed
+    # a paragraph change with unchanged lists is not a list restructure
+    assert not run_with([pinned], [make_page(blocks=["a b"])], [make_page(blocks=["b a"])]).passed
+
+
+def test_list_restructure_ignores_placeholder_tokens_shown_only_by_docusaurus():
+    mkdocs = [make_page(blocks=["Open /bin"], lists=[bullet_list(["Run it - in /conf"])])]
+    docusaurus = [make_page(blocks=["Open <IS_HOME>/bin"], lists=[bullet_list(["Run it"]), bullet_list(["in <IS_HOME>/conf"], depth=1)])]
+    pinned = compare.Rule(name="list-restructure-text-preserved", pages=frozenset({PAGE_PATH}))
+    assert run_with([pinned, compare.Rule(name="placeholder-visible")], mkdocs, docusaurus).passed
+
+
+def test_list_restructure_rejects_changed_text_and_other_pages():
+    mkdocs = [make_page(lists=[bullet_list(["a b"])]), make_page("other/", lists=[bullet_list(["a b"])])]
+    docusaurus = [make_page(lists=[bullet_list(["a"]), bullet_list(["b changed"], depth=1)]),
+                  make_page("other/", lists=[bullet_list(["a"]), bullet_list(["b"], depth=1)])]
+    pinned = compare.Rule(name="list-restructure-text-preserved", pages=frozenset({PAGE_PATH}))
+    result = run_with([pinned], mkdocs, docusaurus)
+    assert {diff.path for diff in result.unexplained} == {PAGE_PATH, "other/"}
+
+
+# ------------------------------------------------------- admonition-type-map
+
+
+def admonition(kind="admonition", type_="note", title="Title", open_=None):
+    """An admonition model entry."""
+    return {"kind": kind, "open": open_, "title": title, "type": type_}
+
+
+@pytest.mark.parametrize("before,after", [("optional", "note"), ("example", "info"), ("", "note"), ("Note", "note")])
+def test_admonition_type_map_accepts_the_pinned_pairs(before, after):
+    result = run([make_page(admonitions=[admonition(type_=before)])], [make_page(admonitions=[admonition(type_=after)])],
+                 "admonition-type-map")
+    assert result.passed and result.rule_counts == {"admonition-type-map": 1}
+
+
+@pytest.mark.parametrize("before,after", [("note", "tip"), ("tip", "note"), ("optional", "info"), ("example", "note")])
+def test_admonition_type_map_rejects_other_type_changes(before, after):
+    assert not run([make_page(admonitions=[admonition(type_=before)])], [make_page(admonitions=[admonition(type_=after)])],
+                   "admonition-type-map").passed
+
+
+def test_admonition_type_map_requires_identical_title_kind_and_count():
+    base = [make_page(admonitions=[admonition(type_="optional")])]
+    assert not run(base, [make_page(admonitions=[admonition(title="Other")])], "admonition-type-map").passed
+    assert not run(base, [make_page(admonitions=[admonition(kind="details", open_=False)])], "admonition-type-map").passed
+    assert not run(base, [make_page(admonitions=[admonition(), admonition()])], "admonition-type-map").passed
 
 
 # ----------------------------------------------------------------- h1 ids
@@ -358,32 +501,60 @@ def test_master_allowlist_is_valid():
     assert rules and all(rule.reason for rule in rules)
 
 
-def test_load_rules_reads_names_and_fixup_scopes(tmp_path):
+def test_load_rules_reads_names_and_fixup_changes(tmp_path):
     rules = compare.load_rules(write_yaml(tmp_path, """
 rules:
   - name: ol-start
+  - name: list-restructure-text-preserved
+    pages: [learn/sample/]
   - id: one
     reason: typo corrected in source
     pages: [learn/sample/]
-    field: blocks
-    from: "teh"
-    to: "the"
+    changes:
+      - {field: blocks, op: replace, index: 0, from: "teh", to: "the"}
+      - {field: code, op: insert, index: 1, value: "x = 1"}
+      - {field: tables, op: delete, index: 0, value: [["a"]]}
+      - {field: title, op: replace, from: "Old", to: "New"}
 """))
-    assert [rule.name for rule in rules] == ["ol-start", "fixup:one"]
-    assert rules[1].pages == frozenset({"learn/sample/"}) and rules[1].field == "blocks"
-    assert (rules[1].replace_from, rules[1].replace_to) == ("teh", "the")
+    assert [rule.name for rule in rules] == ["ol-start", "list-restructure-text-preserved", "fixup:one"]
+    assert rules[2].pages == frozenset({"learn/sample/"})
+    assert rules[2].changes == (
+        compare.Change("blocks", "replace", 0, None, "teh", "the"),
+        compare.Change("code", "insert", 1, "x = 1"),
+        compare.Change("tables", "delete", 0, [["a"]]),
+        compare.Change("title", "replace", None, None, "Old", "New"),
+    )
+
+
+GOOD_CHANGE = "{field: blocks, op: replace, index: 0, from: a, to: b}"
+
+
+def fixup_yaml(changes=GOOD_CHANGE, extra="", pages="[a/]", reason="reason: r"):
+    """An allowlist with one fixup entry; pieces can be replaced to build invalid variants."""
+    return f"rules:\n  - id: x\n    pages: {pages}\n    {reason}\n    changes: [{changes}]\n{extra}"
 
 
 @pytest.mark.parametrize("text", [
     "rules:\n  - name: made-up-rule\n",
     "rules:\n  - name: ol-start\n  - name: ol-start\n",
-    "rules:\n  - name: 'fixup:x'\n    pages: [a/]\n    field: blocks\n    from: a\n    to: b\n    reason: r\n",
-    "rules:\n  - id: x\n    pages: [a/]\n    field: blocks\n    from: a\n    to: b\n",
-    "rules:\n  - id: x\n    pages: [a/]\n    field: blocks\n    from: a\n    reason: r\n",
-    "rules:\n  - id: x\n    pages: [a/]\n    field: nonsense\n    from: a\n    to: b\n    reason: r\n",
-    "rules:\n  - id: x\n    pages: [a/]\n    field: blocks\n    from: a\n    to: a\n    reason: r\n",
-    "rules:\n  - id: x\n    pages: [a/]\n    field: blocks\n    from: a\n    to: b\n    reason: r\n    extra: 1\n",
-    "rules:\n  - id: x\n    pages: [a/]\n    field: blocks\n    from: no\n    to: b\n    reason: r\n",
+    "rules:\n  - name: list-restructure-text-preserved\n",
+    "rules:\n  - name: 'fixup:x'\n    pages: [a/]\n    reason: r\n",
+    "rules:\n  - id: x\n    pages: [a/]\n    reason: r\n",
+    "rules:\n  - id: x\n    pages: [a/]\n    reason: r\n    changes: []\n",
+    "rules:\n  - id: x\n    pages: [a/]\n    changes: [" + GOOD_CHANGE + "]\n",
+    "rules:\n  - id: x\n    reason: r\n    changes: [" + GOOD_CHANGE + "]\n",
+    "rules:\n  - id: x\n    pages: [a/]\n    reason: r\n    field: blocks\n    changes: [" + GOOD_CHANGE + "]\n",
+    fixup_yaml("{field: nonsense, op: replace, index: 0, from: a, to: b}"),
+    fixup_yaml("{field: blocks, op: shuffle, index: 0, from: a, to: b}"),
+    fixup_yaml("{field: blocks, op: replace, from: a, to: b}"),
+    fixup_yaml("{field: blocks, op: replace, index: -1, from: a, to: b}"),
+    fixup_yaml("{field: title, op: replace, index: 0, from: a, to: b}"),
+    fixup_yaml("{field: blocks, op: replace, index: 0, from: a, to: a}"),
+    fixup_yaml("{field: blocks, op: replace, index: 0, from: a}"),
+    fixup_yaml("{field: blocks, op: insert, index: 0}"),
+    fixup_yaml("{field: blocks, op: insert, index: 0, value: x, from: a}"),
+    fixup_yaml("{field: title, op: insert, value: x}"),
+    fixup_yaml("{field: blocks, op: delete, index: 0, value: x, extra: 1}"),
     "rules:\n  - name: ol-start\n    field: blocks\n",
     "rules:\n  - name: ol-start\n    surprise: 1\n",
     "rules: not-a-list\n",

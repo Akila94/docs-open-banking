@@ -12,16 +12,23 @@ remain; 2 for unreadable inputs or an invalid allowlist.
 Allowlist file format (``yaml.safe_load`` only)::
 
     rules:
-      - name: ol-start                  # a built-in rule name, optionally with `pages: [...]`
+      - name: ol-start                  # a built-in rule name, optionally with `pages: [...]` restriction
+      - name: list-restructure-text-preserved
+        pages: [learn/example/]         # this rule must always be pinned to pages
       - id: some-fixup                  # one entry per converter fixup, rule name `fixup:some-fixup`
         pages: [learn/example/]         # base-relative page paths
-        field: blocks                   # the one model field that changed
-        from: "old wording"             # the change is pinned exactly: the Docusaurus value must equal
-        to: "new wording"               # the MkDocs value with `from` replaced by `to` once
         reason: why the difference is accepted
+        changes:                        # exact, pinned edits turning the MkDocs value into the Docusaurus value
+          - {field: blocks, op: replace, index: 0, from: "old wording", to: "new wording"}
+          - {field: code, op: insert, index: 2, value: "new code block"}   # before MkDocs element 2 (len = append)
+          - {field: tables, op: delete, index: 0, value: [["old", "table"]]}
+          - {field: title, op: replace, from: "Old", to: "New"}            # scalar field: no index
 
-All fixup keys are required. For list-valued fields the replacement is applied to the serialised text
-(strings as they are, other elements as compact JSON with sorted keys) of each changed element.
+Indexes always refer to the MkDocs list; all ops of all fixup entries listing a page are applied together.
+A page field is explained by fixups only when the result equals the Docusaurus value exactly (built-in rules
+may then account for what is left, e.g. placeholder-visible). An op that does not apply fails the field.
+For `replace`, `from` must occur exactly once in the serialised element (strings as they are, other
+elements as compact JSON with sorted keys).
 
 h1 headings are compared by (level, text) only: MkDocs gives markdown H1s an id, Docusaurus never does.
 """
@@ -49,13 +56,21 @@ MODEL_FIELDS = (
 )
 DEPRECATED_BANNER_PAGE = "includes/deprecated-banner/"
 PAGE_FIELD = "(page)"
+HOME_PAGE = ""  # path of the site root page
 BUILTIN_RULE_NAMES = (
     "placeholder-visible", "ol-start", "nested-list", "list-not-paragraph",
-    "admonition-title-markup", "deprecated-banner-page-removed", "gfm-autolink-literal",
+    "admonition-title-markup", "deprecated-banner-page-removed", "gfm-autolink-literal", "onclick-card-link",
+    "list-restructure-text-preserved", "admonition-type-map",
 )
+# Rules that are only ever valid pinned to explicit pages (never a global wildcard).
+PAGE_PINNED_RULES = ("list-restructure-text-preserved",)
+# The only admonition type changes Docusaurus makes (MkDocs type -> Docusaurus type).
+ADMONITION_TYPE_MAP = {("optional", "note"), ("example", "info"), ("", "note"), ("Note", "note")}
 _FIXUP_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _BUILTIN_RULE_KEYS = {"name", "reason", "pages"}
-_FIXUP_KEYS = {"id", "pages", "field", "from", "to", "reason"}
+_FIXUP_KEYS = {"id", "pages", "reason", "changes"}
+_CHANGE_KEYS = {"field", "op", "index", "value", "from", "to"}
+_CHANGE_OPS = ("replace", "insert", "delete")
 # `<IDENT>` placeholders and generic-type text such as `<String, JSONObject>`; nothing else.
 _PLACEHOLDER_TOKEN = re.compile(r"<[A-Za-z_][A-Za-z0-9_]*(?:, [A-Za-z_][A-Za-z0-9_]*)*>")
 _MAX_TOKEN_OCCURRENCES = 12
@@ -72,18 +87,32 @@ class ModelError(Exception):
 
 
 @dataclass(frozen=True)
+class Change:
+    """One pinned edit of a model field: ``replace`` (from/to), ``insert`` or ``delete`` (value) at an index."""
+
+    field: str
+    op: str
+    index: Optional[int] = None
+    value: object = None
+    replace_from: Optional[str] = None
+    replace_to: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class Rule:
     """One allowlist rule; ``pages`` optionally restricts where it may apply.
 
-    ``fixup:<id>`` rules also carry the pinned change: ``field``, ``replace_from`` and ``replace_to``.
+    ``fixup:<id>`` rules carry their pinned ``changes``.
     """
 
     name: str
     pages: Optional[FrozenSet[str]] = None
     reason: str = ""
-    field: Optional[str] = None
-    replace_from: Optional[str] = None
-    replace_to: Optional[str] = None
+    changes: Tuple[Change, ...] = ()
+
+
+class ChangeError(Exception):
+    """Raised when a pinned change does not apply to the MkDocs value."""
 
 
 @dataclass(frozen=True)
@@ -218,24 +247,55 @@ def _serialise(element: object) -> str:
     return json.dumps(element, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
-def _fixup_explains(rule: Rule, field: str, mkdocs: dict, docusaurus: dict) -> bool:
-    """The Docusaurus value equals the MkDocs value with ``from`` replaced by ``to`` exactly once.
+def _replace_once(text: str, change: Change) -> str:
+    """Replace ``from`` by ``to`` in ``text``, which must contain ``from`` exactly once."""
+    if text.count(change.replace_from) != 1:
+        raise ChangeError(f"`from` must occur exactly once in the {change.field} value: {change.replace_from[:60]!r}")
+    return text.replace(change.replace_from, change.replace_to, 1)
 
-    For list-valued fields every changed element must satisfy this and the lengths must match.
+
+def apply_changes(field: str, value, changes: Sequence[Change]):
+    """Apply pinned changes to the MkDocs value of one field and return the result.
+
+    Raises:
+        ChangeError: when an op does not apply (bad index, wrong deleted value, `from` not found once).
     """
-    if field != rule.field:
-        return False
-    before, after = mkdocs[field], docusaurus[field]
-    pairs = [(before, after)] if isinstance(before, str) else None
-    if pairs is None:
-        if not (isinstance(before, list) and isinstance(after, list) and len(before) == len(after)):
-            return False
-        pairs = [(old, new) for old, new in zip(before, after) if old != new]
-    for old, new in pairs:
-        old_text = _serialise(old)
-        if old_text.count(rule.replace_from) != 1 or old_text.replace(rule.replace_from, rule.replace_to, 1) != _serialise(new):
-            return False
-    return bool(pairs)
+    if isinstance(value, str):
+        for change in changes:
+            if change.op != "replace" or change.index is not None:
+                raise ChangeError(f"only index-less `replace` applies to the scalar field {field}")
+            value = _replace_once(value, change)
+        return value
+    if not isinstance(value, list):
+        raise ChangeError(f"field {field} cannot be changed")
+    replaced: Dict[int, object] = {}
+    deleted: set = set()
+    inserted: Dict[int, list] = defaultdict(list)
+    for change in changes:
+        index = change.index
+        if index is None or not 0 <= index <= len(value) or (index == len(value) and change.op != "insert"):
+            raise ChangeError(f"index {index} is out of range for {field} (length {len(value)})")
+        if change.op == "insert":
+            inserted[index].append(change.value)
+            continue
+        if index in replaced or index in deleted:
+            raise ChangeError(f"element {index} of {field} is changed twice")
+        if change.op == "delete":
+            if value[index] != change.value:
+                raise ChangeError(f"deleted value does not match element {index} of {field}")
+            deleted.add(index)
+            continue
+        text = _replace_once(_serialise(value[index]), change)
+        try:
+            replaced[index] = text if isinstance(value[index], str) else json.loads(text)
+        except ValueError as error:
+            raise ChangeError(f"replacement in element {index} of {field} is not valid: {error}") from error
+    result: list = []
+    for index in range(len(value) + 1):
+        result.extend(inserted.get(index, []))
+        if index < len(value) and index not in deleted:
+            result.append(replaced.get(index, value[index]))
+    return result
 
 
 def _ol_start(field: str, mkdocs: dict, docusaurus: dict) -> bool:
@@ -301,6 +361,17 @@ def _is_autolink_literal(link: dict) -> bool:
     return bool(text) and (text == target or f"mailto:{text}" == target or unquote(target) == text)
 
 
+def _added_links_only(mkdocs: dict, docusaurus: dict) -> Optional[List[dict]]:
+    """The links Docusaurus added when the existing ones are untouched and in order; None otherwise."""
+    before, after = mkdocs["links"], docusaurus["links"]
+    operations = difflib.SequenceMatcher(None, [json.dumps(entry, sort_keys=True) for entry in before],
+                                         [json.dumps(entry, sort_keys=True) for entry in after],
+                                         autojunk=False).get_opcodes()
+    if any(tag not in ("equal", "insert") for tag, *_ in operations):
+        return None
+    return [entry for tag, _, _, start, end in operations if tag == "insert" for entry in after[start:end]]
+
+
 def _gfm_autolink_literal(field: str, mkdocs: dict, docusaurus: dict) -> bool:
     """Only links were added, each one a bare URL/email that MkDocs already showed as plain text.
 
@@ -310,15 +381,70 @@ def _gfm_autolink_literal(field: str, mkdocs: dict, docusaurus: dict) -> bool:
     """
     if field != "links":
         return False
-    before, after = mkdocs["links"], docusaurus["links"]
-    operations = difflib.SequenceMatcher(None, [json.dumps(entry, sort_keys=True) for entry in before],
-                                         [json.dumps(entry, sort_keys=True) for entry in after],
-                                         autojunk=False).get_opcodes()
-    if any(tag not in ("equal", "insert") for tag, *_ in operations):
+    added = _added_links_only(mkdocs, docusaurus)
+    if added is None:
         return False
-    added = [entry for tag, _, _, start, end in operations if tag == "insert" for entry in after[start:end]]
     visible = " ".join(_visible_texts(mkdocs))
     return bool(added) and all(_is_autolink_literal(entry) and entry["text"] in visible for entry in added)
+
+
+def _onclick_card_link(field: str, mkdocs: dict, docusaurus: dict) -> bool:
+    """Home page only: links were added for MkDocs cards that navigate with ``onclick``.
+
+    Each added link must point at a recorded ``location.href`` target (trailing slash ignored) and its text
+    must already be visible text of the MkDocs page.
+    """
+    if field != "links" or mkdocs["path"] != HOME_PAGE:
+        return False
+    added = _added_links_only(mkdocs, docusaurus)
+    if not added:
+        return False
+    targets = {target.rstrip("/") for target in mkdocs.get("onclick_targets", [])}
+    visible = collapse(" ".join(_visible_texts(mkdocs)))
+    return all(entry["target"].rstrip("/") in targets and collapse(entry["text"]) in visible for entry in added)
+
+
+def _list_words(page: dict, with_blocks: bool) -> Counter:
+    """Word counts of all list item text (all depths), list markers stripped; optionally plus the paragraphs.
+
+    ``<IDENT>`` placeholders are dropped (MkDocs swallows them; ``placeholder-visible`` accounts for them).
+    """
+    texts = [item for entry in page["lists"] for item in entry["items"]] + (page["blocks"] if with_blocks else [])
+    return Counter(strip_list_markers(_PLACEHOLDER_TOKEN.sub("", " ".join(texts))).split())
+
+
+def _list_restructure_text_preserved(field: str, mkdocs: dict, docusaurus: dict) -> bool:
+    """Lists were restructured (nesting depth, item boundaries, ``start``) without changing any text.
+
+    The item text of all lists of the page (all depths, markers stripped, whitespace normalised) must read
+    the same on both sides. The model lists nested lists after their parent, so the ORDER of items cannot be
+    judged from it: words are compared as counts. When paragraphs became list items, ``blocks`` and ``lists``
+    are judged together (the text moved between them) and ``blocks`` may only differ when ``lists`` does too.
+    """
+    if field == "lists":
+        if mkdocs["blocks"] != docusaurus["blocks"]:
+            return _list_words(mkdocs, True) == _list_words(docusaurus, True)
+        return _list_words(mkdocs, False) == _list_words(docusaurus, False)
+    if field == "blocks":
+        return mkdocs["lists"] != docusaurus["lists"] and _list_words(mkdocs, True) == _list_words(docusaurus, True)
+    return False
+
+
+def _admonition_type_map(field: str, mkdocs: dict, docusaurus: dict) -> bool:
+    """Admonitions differ only by a pinned type change (optional->note, example->info, ""->note, Note->note).
+
+    Kind, open state and the title text must be identical.
+    """
+    if field != "admonitions" or len(mkdocs[field]) != len(docusaurus[field]):
+        return False
+    for before, after in zip(mkdocs[field], docusaurus[field]):
+        if before == after:
+            continue
+        if {k: v for k, v in before.items() if k != "type"} != {k: v for k, v in after.items() if k != "type"}:
+            return False
+        if (before.get("type"), after.get("type")) not in ADMONITION_TYPE_MAP:
+            return False
+    return True
 
 
 _FIELD_RULES: Dict[str, Callable[[str, dict, dict], bool]] = {
@@ -328,6 +454,9 @@ _FIELD_RULES: Dict[str, Callable[[str, dict, dict], bool]] = {
     "list-not-paragraph": _list_not_paragraph,
     "admonition-title-markup": _admonition_title_markup,
     "gfm-autolink-literal": _gfm_autolink_literal,
+    "onclick-card-link": _onclick_card_link,
+    "list-restructure-text-preserved": _list_restructure_text_preserved,
+    "admonition-type-map": _admonition_type_map,
 }
 
 
@@ -336,7 +465,7 @@ def rule_explains_field(rule: Rule, field: str, mkdocs: dict, docusaurus: dict) 
     if rule.pages is not None and mkdocs["path"] not in rule.pages:
         return False
     if rule.name.startswith("fixup:"):
-        return _fixup_explains(rule, field, mkdocs, docusaurus)
+        return False  # fixups are applied together per page in _compare_page
     predicate = _FIELD_RULES.get(rule.name)
     return predicate is not None and predicate(field, mkdocs, docusaurus)
 
@@ -382,20 +511,56 @@ def compare_models(mkdocs_pages: Dict[str, dict], docusaurus_pages: Dict[str, di
     return result
 
 
+def _fixup_edits(path: str, mkdocs: dict, rules: Sequence[Rule]) -> Tuple[dict, Dict[str, List[Rule]], Dict[str, str]]:
+    """Apply every fixup entry listing the page: returns (patched page, rules per touched field, errors per field)."""
+    by_field: Dict[str, List[Tuple[Rule, Change]]] = defaultdict(list)
+    for rule in rules:
+        if rule.name.startswith("fixup:") and (rule.pages is None or path in rule.pages):
+            for change in rule.changes:
+                by_field[change.field].append((rule, change))
+    patched, touched, errors = dict(mkdocs), {}, {}
+    for field, edits in by_field.items():
+        try:
+            patched[field] = apply_changes(field, mkdocs[field], [change for _, change in edits])
+        except ChangeError as error:
+            errors[field] = str(error)
+            continue
+        touched[field] = list({rule.name: rule for rule, _ in edits}.values())
+    return patched, touched, errors
+
+
 def _compare_page(path: str, mkdocs: dict, docusaurus: dict, rules: Sequence[Rule], counts: Counter, result: Result) -> None:
-    """Compare two versions of one page field by field, crediting every rule that explains a difference."""
+    """Compare two versions of one page field by field, crediting every rule that explains a difference.
+
+    The page's fixup edits are applied to the MkDocs model first; a field is then explained when the edited
+    value equals the Docusaurus value, or when built-in rules explain what is left.
+    """
     differing = [field for field in MODEL_FIELDS if mkdocs.get(field) != docusaurus.get(field)]
-    if not differing:
+    patched, touched, errors = _fixup_edits(path, mkdocs, rules)
+    fields = [field for field in MODEL_FIELDS if field in differing or field in touched or field in errors]
+    if not fields:
         result.identical_pages += 1
         return
+    builtin = [rule for rule in rules if not rule.name.startswith("fixup:")]
     all_explained = True
-    for field in differing:
-        matching = [rule for rule in rules if rule_explains_field(rule, field, mkdocs, docusaurus)]
-        for rule in matching:
+    for field in fields:
+        credited: List[Rule] = []
+        if field in errors:
+            pass
+        elif patched[field] == docusaurus[field]:
+            credited = list(touched.get(field, []))
+            if not credited:
+                continue
+        else:
+            matching = [rule for rule in builtin if rule_explains_field(rule, field, patched, docusaurus)]
+            credited = matching + list(touched.get(field, [])) if matching else []
+        for rule in credited:
             counts[rule.name] += 1
-        if not matching:
+        if not credited:
             all_explained = False
-            result.unexplained.append(FieldDiff(path, field, mkdocs.get(field), docusaurus.get(field)))
+            shown = mkdocs.get(field) if field in errors else patched.get(field)
+            result.unexplained.append(FieldDiff(path, field, shown if shown is not None else mkdocs.get(field),
+                                                docusaurus.get(field)))
     if all_explained:
         result.explained_pages += 1
 
@@ -451,11 +616,41 @@ def _parse_rule(entry: object) -> Rule:
     reason = entry.get("reason", "")
     if not isinstance(reason, str):
         raise AllowlistError(f"`reason` of rule {name!r} must be a string")
-    return Rule(name=name, pages=_string_set(entry, "pages", name), reason=reason)
+    pages = _string_set(entry, "pages", name)
+    if name in PAGE_PINNED_RULES and pages is None:
+        raise AllowlistError(f"rule {name!r} must be pinned to explicit `pages`")
+    return Rule(name=name, pages=pages, reason=reason)
+
+
+def _parse_change(change: object, label: str) -> Change:
+    """Validate one pinned change of a fixup entry."""
+    if not isinstance(change, dict) or not {"field", "op"} <= set(change) or set(change) - _CHANGE_KEYS:
+        raise AllowlistError(f"every change of {label!r} must be a mapping with `field`, `op` and only {sorted(_CHANGE_KEYS)}")
+    field, op = change["field"], change["op"]
+    if field not in MODEL_FIELDS:
+        raise AllowlistError(f"change of {label!r} has unknown field {field!r}; expected one of {list(MODEL_FIELDS)}")
+    if op not in _CHANGE_OPS:
+        raise AllowlistError(f"change of {label!r} has unknown op {op!r}; expected one of {list(_CHANGE_OPS)}")
+    scalar = field == "title"
+    index = change.get("index")
+    if scalar != (index is None) or (index is not None and (not isinstance(index, int) or isinstance(index, bool) or index < 0)):
+        raise AllowlistError(f"change of {label!r} on {field}: `index` is required for list fields (>= 0) and forbidden for title")
+    if op == "replace":
+        if set(change) - {"field", "op", "index", "from", "to"}:
+            raise AllowlistError(f"`replace` change of {label!r} takes only index, from and to")
+        old, new = change.get("from"), change.get("to")
+        if not isinstance(old, str) or not isinstance(new, str) or not old or old == new:
+            raise AllowlistError(f"`replace` change of {label!r} needs a non-empty string `from` that differs from string `to`")
+        return Change(field, op, index, None, old, new)
+    if scalar:
+        raise AllowlistError(f"title only supports `replace` (rule {label!r})")
+    if set(change) - {"field", "op", "index", "value"} or "value" not in change:
+        raise AllowlistError(f"`{op}` change of {label!r} takes exactly index and value")
+    return Change(field, op, index, change["value"])
 
 
 def _parse_fixup(entry: dict) -> Rule:
-    """Validate a fixup entry: all of id, pages, field, from, to and reason are required."""
+    """Validate a fixup entry: all of id, pages, reason and a non-empty list of changes are required."""
     fixup_id = entry["id"]
     if not isinstance(fixup_id, str) or not _FIXUP_ID.match(fixup_id):
         raise AllowlistError(f"invalid fixup id {fixup_id!r}")
@@ -467,15 +662,12 @@ def _parse_fixup(entry: dict) -> Rule:
     if missing:
         raise AllowlistError(f"fixup rule {label!r} is missing required keys {missing}")
     pages = _string_set(entry, "pages", label)
-    if entry["field"] not in MODEL_FIELDS:
-        raise AllowlistError(f"rule {label!r} has unknown field {entry['field']!r}; expected one of {list(MODEL_FIELDS)}")
-    for key in ("from", "to", "reason"):
-        if not isinstance(entry[key], str):
-            raise AllowlistError(f"`{key}` of rule {label!r} must be a string (quote it in YAML)")
-    if not entry["from"] or not entry["reason"] or entry["from"] == entry["to"]:
-        raise AllowlistError(f"rule {label!r} needs a non-empty `from` that differs from `to`, and a non-empty `reason`")
-    return Rule(name=label, pages=pages, reason=entry["reason"], field=entry["field"],
-                replace_from=entry["from"], replace_to=entry["to"])
+    if not isinstance(entry["reason"], str) or not entry["reason"]:
+        raise AllowlistError(f"rule {label!r} needs a non-empty `reason` string")
+    if not isinstance(entry["changes"], list) or not entry["changes"]:
+        raise AllowlistError(f"`changes` of rule {label!r} must be a non-empty list")
+    changes = tuple(_parse_change(change, label) for change in entry["changes"])
+    return Rule(name=label, pages=pages, reason=entry["reason"], changes=changes)
 
 
 def load_model(path: Path) -> Dict[str, dict]:
