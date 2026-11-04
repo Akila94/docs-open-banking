@@ -6,6 +6,7 @@ on:
       - master
       - 3.0.0
       - versions
+      - docusaurus-migration-4.0.0-pr
 
 # Checks only read the repository. Nothing here needs a write token.
 permissions:
