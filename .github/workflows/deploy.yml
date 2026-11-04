@@ -78,7 +78,7 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    if: github.repository == 'wso2/docs-open-banking'
+    if: github.repository == 'Akila94/docs-open-banking'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
