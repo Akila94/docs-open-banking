@@ -1,5 +1,5 @@
 ---
-title: "Welcome to the WSO2 Open Banking Accelerator Documentation!"
+title: "Welcome to the WSO2 Open Banking Accelerator Documentation"
 slug: /
 ---
 WSO2 Open Banking Accelerator is a collection of technologies that increases the speed and reduces the complexity
