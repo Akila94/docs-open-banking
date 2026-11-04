@@ -1,4 +1,10 @@
-#Event Subscription
+---
+title: "Event Subscription"
+---
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Event Subscription
 
 The Event Subscription API facilitates the ability to subscribe to receive notifications about particular events of interest. Event Subscription endpoints are secured with basic authentication (admin username and password) and accept a JSON payload.
 
@@ -6,36 +12,34 @@ You can subscribe to receive notifications using this API for particular event t
 
 - Event Subscription Creation
 
-API consumer applications can utilize this API to create event notification subscriptions tailored to their specific needs. By selecting the events they want to be notified about.
+This API can be used to create event notification subscriptions tailored to user needs by selecting the events to be notified about.
 
 - Event Subscription Retrieval
-
-The API allows API consumer applications to retrieve information about specific event notification subscriptions they have previously established. This feature ensures that TPPs have easy access to their subscribed events and their respective configurations.
+    This API allows users to retrieve details of specific event notification subscriptions they previously created. This feature ensures that TPPs can access subscribed events and their configurations easily.
 
 - All Event Subscriptions Retrieval
+    This API can be used to retrieve a comprehensive list of all event notification subscriptions.
 
-API consumer applications can access a comprehensive list of all their event notification subscriptions..
+- Event Subscriptions Retrieval by a Subscribed Event Type
+    The API enables the API users to retrieve event notification subscriptions that have subscribed to a particular event type. 
 
-- Event Subscriptions Retrieval by an Subscribed Event Type
-
-The API enables the API users to retrieve event notification subscriptions that have subscribed to a particular event type. 
-
-- Event Subscription Updation
-
-API consumer applications have the flexibility to update the data and configurations of their existing event notification subscriptions. This feature allows them to adapt to changing requirements and preferences seamlessly.
+- Event Subscription Update
+    This API allows users to update data and configurations of existing event notification subscriptions, enabling adaptation to changing requirements and preferences.
 
 - Event Subscription Deletion
+    This API allows users to delete specific event notification subscriptions that are no longer required.
 
-The API allows API consumer applications to delete specific event notification subscriptions that are no longer required.
-
-You can customize the Event Subscription Flow according to your requirements. For more information, see [Customizing Event Notification](../develop/custom-event-notification.md).
+You can customize the Event Subscription Flow according to your requirements. For more information, see [Customizing Event Subscription](../develop/openapi/openapi-event-subscription.md).
 
 Given below are sample Event Subscription request payloads and their responses:
 
 - Create an Event Notification Subscription
 
-```tab="Request"
-curl --location 'https://localhost:9446/api/openbanking/event-notifications/subscription/' \
+<Tabs>
+<TabItem value="request" label="Request">
+
+```
+curl --location 'https://localhost:9446/api/fs/event-notifications/subscription/' \
 --header 'Authorization: Basic YWRtaW5Ad3NvMi5jb206d3NvMjEyMw==' \
 --header 'x-wso2-client_id: L5Ao9g7ZgzBifPSDKyr8vDZlllca' \
 --header 'Content-Type: application/json' \
@@ -50,7 +54,10 @@ curl --location 'https://localhost:9446/api/openbanking/event-notifications/subs
 }'
 ```
 
-```json tab="Response"
+</TabItem>
+<TabItem value="response" label="Response">
+
+```json
 {
         "callbackUrl": "https://tpp.com/open-banking/v3.1/event-notifications",
         "subscriptionId": "77654c28-3c0f-4406-8ff3-7aa04efcbd33",
@@ -63,17 +70,26 @@ curl --location 'https://localhost:9446/api/openbanking/event-notifications/subs
 }
 ```
 
+</TabItem>
+</Tabs>
+
 - Retrieve an Event Notification Subscription
 
-```tab="Request"
-curl --location 'https://localhost:9446/api/openbanking/event-notifications/subscription/<SUBSCRIPTION_ID>' \
+<Tabs>
+<TabItem value="request" label="Request">
+
+```
+curl --location 'https://localhost:9446/api/fs/event-notifications/subscription/<SUBSCRIPTION_ID>' \
 --header 'Authorization: Basic YWRtaW5Ad3NvMi5jb206d3NvMjEyMw==' \
 --header 'x-wso2-client_id: L5Ao9g7ZgzBifPSDKyr8vDZlllca' \
 --header 'Content-Type: application/json' \
 --data '’
 ```
 
-```json tab="Response"
+</TabItem>
+<TabItem value="response" label="Response">
+
+```json
 {
    [
         {
@@ -90,17 +106,26 @@ curl --location 'https://localhost:9446/api/openbanking/event-notifications/subs
 }
 ```
 
+</TabItem>
+</Tabs>
+
 - Retrieve All Event Notification Subscriptions
 
-```tab="Request"
-curl --location 'https://localhost:9446/api/openbanking/event-notifications/subscription/' \
+<Tabs>
+<TabItem value="request" label="Request">
+
+```
+curl --location 'https://localhost:9446/api/fs/event-notifications/subscription/' \
 --header 'Authorization: Basic YWRtaW5Ad3NvMi5jb206d3NvMjEyMw==' \
 --header 'x-wso2-client_id: L5Ao9g7ZgzBifPSDKyr8vDZlllca' \
 --header 'Content-Type: application/json' \
 --data ''
 ```
 
-```json tab="Response"
+</TabItem>
+<TabItem value="response" label="Response">
+
+```json
 {
    [
         {
@@ -127,16 +152,25 @@ curl --location 'https://localhost:9446/api/openbanking/event-notifications/subs
 }
 ```
 
-- Retrieve Event Notification Subscriptions by an Subscribed Event Type
+</TabItem>
+</Tabs>
 
-```tab="Request"
-curl --location 'https://localhost:9446/api/openbanking/event-notifications/subscription/type/<SUBSCRIBED_EVENT_TYPE>' \
+- Retrieve Event Notification Subscriptions by a Subscribed Event Type
+
+<Tabs>
+<TabItem value="request" label="Request">
+
+```
+curl --location 'https://localhost:9446/api/fs/event-notifications/subscription/type/<SUBSCRIBED_EVENT_TYPE>' \
 --header 'Authorization: Basic YWRtaW5Ad3NvMi5jb206d3NvMjEyMw==' \
 --header 'x-wso2-client_id: L5Ao9g7ZgzBifPSDKyr8vDZlllca' \
 --header 'Content-Type: application/json'
 ```
 
-```json tab="Response"
+</TabItem>
+<TabItem value="response" label="Response">
+
+```json
 {
    [
         {
@@ -162,10 +196,16 @@ curl --location 'https://localhost:9446/api/openbanking/event-notifications/subs
 }
 ```
 
+</TabItem>
+</Tabs>
+
 - Update an Event Notification Subscription
 
-```tab="Request"
-curl --location --request PUT 'https://localhost:9446/api/openbanking/event-notifications/subscription/<SUBSCRIPTION_ID>' \
+<Tabs>
+<TabItem value="request" label="Request">
+
+```
+curl --location --request PUT 'https://localhost:9446/api/fs/event-notifications/subscription/<SUBSCRIPTION_ID>' \
 --header 'Authorization: Basic YWRtaW5Ad3NvMi5jb206d3NvMjEyMw==' \
 --header 'x-wso2-client_id: L5Ao9g7ZgzBifPSDKyr8vDZlllca' \
 --header 'Content-Type: application/json' \
@@ -178,7 +218,10 @@ curl --location --request PUT 'https://localhost:9446/api/openbanking/event-noti
 }'
 ```
 
-```json tab="Response"
+</TabItem>
+<TabItem value="response" label="Response">
+
+```json
 {
         "callbackUrl": "updatedUrl",
         "subscriptionId": "e9125882-66ab-47d7-b9c0-3b55fe98ea84",
@@ -191,16 +234,28 @@ curl --location --request PUT 'https://localhost:9446/api/openbanking/event-noti
 }
 ```
 
+</TabItem>
+</Tabs>
+
 - Delete an Event Notification Subscription
 
-```tab="Request"
-curl --location --request DELETE 'https://localhost:9446/api/openbanking/event-notifications/subscription/<SUBSCRIPTION_ID>' \
+<Tabs>
+<TabItem value="request" label="Request">
+
+```
+curl --location --request DELETE 'https://localhost:9446/api/fs/event-notifications/subscription/<SUBSCRIPTION_ID>' \
 --header 'Authorization: Basic YWRtaW5Ad3NvMi5jb206d3NvMjEyMw==' \
 --header 'x-wso2-client_id: L5Ao9g7ZgzBifPSDKyr8vDZlllca' \
 --header 'Content-Type: application/json' \
 --data ''
 ```
 
-```tab="Response"
+</TabItem>
+<TabItem value="response" label="Response">
+
+```
 204 No Content
 ```
+
+</TabItem>
+</Tabs>

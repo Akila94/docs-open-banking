@@ -1,3 +1,6 @@
+# macOS Finder metadata
+.DS_Store
+
 # Compiled class file
 *.class
 
@@ -12,7 +15,6 @@
 
 # Package Files #
 *.jar
-*.war
 *.nar
 *.ear
 *.zip
@@ -43,3 +45,9 @@ jspm_packages/
 .node_repl_history
 
 dist/
+
+# Docusaurus site
+node_modules/
+build/
+.docusaurus/
+.preview/

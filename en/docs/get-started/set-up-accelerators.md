@@ -1,69 +1,118 @@
-This section guides you to set up and prepare your servers to run WSO2 Open Banking Accelerator.
+---
+title: "Set Up Accelerators"
+---
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-### Step 1: Set up accelerators 
-Copy the extracted accelerator directories into the root directories of the respective base products. Use the table to 
-locate the respective root directory of the base products:
+This section guides you to set up and prepare your server to run WSO2 Open Banking Accelerator.
 
-| File | Directory location to place the Accelerator |
-|---------|---------    |
-|`wso2-obiam-accelerator-3.0.0`|`<IS_HOME>`|
-|`wso2-obam-accelerator-3.0.0`|`<APIM_HOME>`|
+## Set up WSO2 Identity Server
+
+### Step 1: Install WSO2 Open Banking IAM Accelerator
+Copy the extracted accelerator directory into the root directory of the WSO2 Identity Server. 
+
+| File                           | Directory location to place the Accelerator |
+|--------------------------------|---------  |
+| `wso2-fsiam-accelerator-4.0.0` |`<IS_HOME>`|
+
+:::tip
+This documentation will refer to the above-extracted directory of the accelerator as `<OB_IS_ACCELERATOR_HOME>`.
+:::
 
 ### Step 2: Configure database scripts
 
-!!! note 
-    WSO2 Open Banking Accelerator is [compatible](../install-and-setup/prerequisites.md#compatibility) with the following DBMSs:
-    
-     - MySQL 8.0
-     - Oracle 19c
-     - Microsoft SQL Server 2017
-     - PostgreSQL 13
-     
+:::note
+WSO2 Open Banking Accelerator is [compatible](../install-and-setup/prerequisites.md#compatibility) with the following DBMSs:
+
+- MySQL 8.0
+- Oracle 19c
+- Microsoft SQL Server 2017
+- PostgreSQL 13
+:::
+
 This section explains how to set up the solution with a MySQL 8.0 database server. For other DBMS, see 
 [Setting up databases](../install-and-setup/setting-up-databases.md).
 
-1. Open the `<APIM_HOME>/<OB_APIM_ACCELERATOR_HOME>/repository/conf/configure.properties` file.
+This section explains how to set up the solution with a MySQL 8.0 database server. For other DBMS, see Setting up databases.
 
-2. Configure the hostnames of the API Manager and Identity Server.
+1. Place the compatible JDBC drivers in the `<IS_HOME>/repository/components/lib` folder. Supported JDBC driver for MySQL 8.0 : mysql-connector-java-5.1.44.jar
+2. Open the `<IS_HOME>/<OB_IS_ACCELERATOR_HOME>/repository/conf/configure.properties` file.
+3. Configure database-related properties and database names.
 
-3. Configure databases related properties and database names.
+### Step 3: Set up the IS server
+1. Open and configure the configure.properties file resides in `<IS_HOME>/<OB_IS_ACCELERATOR_HOME>/repository/conf` folder.
+    a. Configure the hostnames of the API Manager and Identity Server.
 
-4. Open the `<IS_HOME>/<OB_IS_ACCELERATOR_HOME>/repository/conf/configure.properties` file and repeat step 2 and 3.
-     
-### Step 3: Set up servers 
-1. Run the merge script in `<APIM_HOME>/<OB_APIM_ACCELERATOR_HOME>/bin` and 
-`<IS_HOME>/<OB_IS_ACCELERATOR_HOME>/bin` respectively:
-    ```bash tab='On Linux'
+    b. Configure the admin credentials of the Identity Server.
+
+    c. Update the “IS_PRODUCT” to `wso2is-<IS_VERSION>`.
+
+    d. Update the “PRODUCT_CONF_PATH” to `repository/resources/wso2is-<IS_VERSION>-deployment.toml`.
+
+
+    :::note
+    Use the Identity Server version deploying as the IS_VERSION.
+    :::
+
+2. Run the merge script in `<IS_HOME>/<OB_IS_ACCELERATOR_HOME>/bin`:
+
+    <Tabs>
+    <TabItem value="on-linux" label="On Linux">
+
+    ```bash
     ./merge.sh
     ```
-    
-    ```bash tab='On Mac'
+
+    </TabItem>
+    <TabItem value="on-mac" label="On Mac">
+
+    ```bash
     ./merge.sh
     ```
-    
-    ```bash tab='On Windows'
+
+    </TabItem>
+    <TabItem value="on-windows" label="On Windows">
+
+    ```powershell
     ./merge.ps1
     ```
 
-2. Run the configure files in `<APIM_HOME>/<OB_APIM_ACCELERATOR_HOME>/bin` and 
-`<IS_HOME>/<OB_IS_ACCELERATOR_HOME>/bin` respectively:
-    ```bash tab='On Linux'
+    </TabItem>
+    </Tabs>
+
+3. Run the configure file in `<IS_HOME>/<OB_IS_ACCELERATOR_HOME>/bin`:
+
+    <Tabs>
+    <TabItem value="mysql" label="MySQL">
+
+    ```bash
     ./configure.sh
     ```
-    
-    ```bash tab='On Mac'
+
+    </TabItem>
+    <TabItem value="on-mac" label="On Mac">
+
+    ```bash
     ./configure.sh
     ```
-    
-    ```powershell tab='On Windows'
+
+    </TabItem>
+    <TabItem value="on-windows" label="On Windows">
+
+    ```powershell
     ./configure.ps1
     ```
 
-??? warning "If you are using windows platform..."
+    </TabItem>
+    </Tabs>
+
+    <details className="ob-details ob-details--warning">
+    <summary>If you are using windows platform...</summary>
+
     If you are using windows platform, since the merge.ps1 and configure.ps1 files are not digitally signed yet,
     your powershell might prevent you from running them normally. In that case you may need to run these
     scripts in a powershell instance where its execution policy is set to bypass mode.
-    
+
     Use the following command to run these scripts in execution policy bypassed powershell environment.
 
     ```
@@ -74,53 +123,177 @@ This section explains how to set up the solution with a MySQL 8.0 database serve
     powershell -executionpolicy bypass .\configure.ps1
     ```
 
-    IMPORTANT : Do not run any other unverified scripts using this way. This is a temporary solution. 
+    IMPORTANT : Do not run any other unverified scripts using this way. This is a temporary solution.
 
-3. If you are using **WSO2 Identity Server 6.0.0**,
+    </details>
 
-    1. Open the `<IS_HOME>/repository/conf/deployment.toml` file.
-    2. Add below configuration to enable application role validation:
-   
-        ```toml
-        [application_mgt]
-        enable_role_validation = true
-        ```
+4. Run the db script resides in `<IS_HOME>/dbscripts/financial-services/event-notifications` directory to create database tables for event notification feature in `fs_consentdb` database. 
 
-4. Extract the `wso2is-extensions` zip file of the relevant API Manager version.
+## Setting Up WSO2 API Manager
 
-5. Follow the given instructions and copy the relevant files to the given directory paths. 
+### Step 1: Install WSO2 Open Banking AM Accelerator
+Copy the extracted accelerator directory into the root directory of the WSO2 API Manager. 
 
-     1. Open the `<IS_EXTENSION>/dropins` folder.
-     2. Copy the following JAR files to the `<IS_HOME>/repository/components/dropins` folder.
-         - `wso2is.key.manager.core`
-         - `wso2is.notification.event.handlers`
-     3. Open the `<IS_EXTENSION>/webapps` folder.
-     4. Copy the `keymanager-operations.war` file to the `<IS_HOME>/repository/deployment/server/webapps` folder.
-    
-### Step 4: Start servers
+| File                           | Directory location to place the Accelerator |
+|--------------------------------|-----------  |
+| `wso2-fsam-accelerator-4.0.0`  |`<APIM_HOME>`|
 
-??? warning "If you are using JDK 17 with WSO2 Identity Server 6.0.0, you need to enable adaptive authentication. Click here to see how it is done..."
+:::tip
+This documentation will refer to the above-extracted directory of the accelerator as `<OB_APIM_ACCELERATOR_HOME>`.
+:::
 
-     For JDK 17 runtime, adaptive authentication is disabled by default and it is required to enable adaptive authentication. To enable adaptive authentication: 
+### Step 2: Configure database scripts \{#step-2-configure-database-scripts_1\}
 
-     1. Go to `<IS_HOME>/bin`. 
-     2. Run the following command:
+:::note
+WSO2 Open Banking Accelerator is [compatible](../install-and-setup/prerequisites.md#compatibility) with the following DBMSs:
 
-         ```toml tab='On Mac'
-         ./adaptive.sh
-         ```
-         
-         ```toml tab='On Windows'
-         ./adaptive.bat
-         ```
+- MySQL 8.0
+- Oracle 19c
+- Microsoft SQL Server 2017
+- PostgreSQL 13
+:::
 
-     See [Adaptive Authentication - Prerequisites](https://is.docs.wso2.com/en/6.0.0/guides/adaptive-auth/configure-adaptive-auth/#prerequisites) for more information.
+This section explains how to set up the solution with a MySQL 8.0 database server. For other DBMS, see 
+[Setting up databases](../install-and-setup/setting-up-databases.md).
 
-1. Run the following command in `<IS_HOME>/bin`:
+This section explains how to set up the solution with a MySQL 8.0 database server. For other DBMS, see Setting up databases.
+
+1. Place the compatible JDBC drivers in the `<APIM_HOME>/repository/components/lib` folder. Supported JDBC driver for MySQL 8.0 : mysql-connector-java-5.1.44.jar
+2. Open the `<APIM_HOME>/<OB_APIM_ACCELERATOR_HOME>/repository/conf/configure.properties` file.
+3. Configure database-related properties and database names.
+
+### Step 3: Set up the APIM server
+1. Open and configure the configure.properties file resides in `<APIM_HOME>/<OB_APIM_ACCELERATOR_HOME>/repository/conf` folder.
+    a. Configure the hostnames of the API Manager and Identity Server.
+
+    b. Configure the admin credentials of the API Manager and Identity Server.
+
+    c. Configure the admin name.
+
+    d. Update the “PRODUCT_CONF_PATH” to `repository/resources/wso2am-<APIM_VERSION>-deployment.toml`.
+
+
+    :::note
+    Use the API Manager version deploying as the APIM_VERSION.
+    :::
+
+2. Run the merge script in `<APIM_HOME>/<OB_APIM_ACCELERATOR_HOME>/bin`:
+
+    <Tabs>
+    <TabItem value="on-linux" label="On Linux">
+
+    ```bash
+    ./merge.sh
+    ```
+
+    </TabItem>
+    <TabItem value="on-mac" label="On Mac">
+
+    ```bash
+    ./merge.sh
+    ```
+
+    </TabItem>
+    <TabItem value="on-windows" label="On Windows">
+
+    ```powershell
+    ./merge.ps1
+    ```
+
+    </TabItem>
+    </Tabs>
+
+3. Run the configure file in `<APIM_HOME>/<OB_APIM_ACCELERATOR_HOME>/bin`:
+
+    <Tabs>
+    <TabItem value="mysql" label="MySQL">
+
+    ```bash
+    ./configure.sh
+    ```
+
+    </TabItem>
+    <TabItem value="on-mac" label="On Mac">
+
+    ```bash
+    ./configure.sh
+    ```
+
+    </TabItem>
+    <TabItem value="on-windows" label="On Windows">
+
+    ```powershell
+    ./configure.ps1
+    ```
+
+    </TabItem>
+    </Tabs>
+
+    <details className="ob-details ob-details--warning">
+    <summary>If you are using windows platform...</summary>
+
+    If you are using windows platform, since the merge.ps1 and configure.ps1 files are not digitally signed yet,
+    your powershell might prevent you from running them normally. In that case you may need to run these
+    scripts in a powershell instance where its execution policy is set to bypass mode.
+
+    Use the following command to run these scripts in execution policy bypassed powershell environment.
+
+    ```
+    powershell -executionpolicy bypass .\merge.ps1
+    ```
+
+    ```
+    powershell -executionpolicy bypass .\configure.ps1
+    ```
+
+    IMPORTANT : Do not run any other unverified scripts using this way. This is a temporary solution.
+
+    </details>
+
+## Exchanging the certificates
+
+In order to enable secure communication, we need to install the certificates of each component in others. This will facilitate a Secure Socket Layer (SSL). Follow the steps below to implement this:
+
+:::note
+Here Server A can be either IS, APIM or any other product.
+:::
+
+1. Generate a key against the keystore of a particular server. For example, server A with an alias and common name that is equal to the hostname.
+    ```
+    keytool -genkey -alias <keystore_alias> -keyalg RSA -keysize 2048 -validity 3650 -keystore <keystore_path> -storepass <keystore_password> -keypass <key password> -noprompt
+    ```
+
+2. Export the public certificate of the newly generated key pair.
+    ```
+    keytool -export -alias <cert_alias> -file <certificate_path> -keystore <keystore path>>
+    ```
+
+3. Import the public cert of Server A to the client truststores of all the servers including Server A.
+    ```
+    keytool -import -trustcacerts -alias <cert_alias> -file <certificate_path> -keystore <trustore_path> -storepass <keystore_password> -noprompt
+    ```
+
+4. Repeat above steps for all the servers.
+
+## Uploading Root and Issuer certificates
+
+Upload the root and issuer certificates of OBIE ([Sandbox Certificates](https://openbanking.atlassian.net/wiki/spaces/DZ/pages/252018873/OB+Root+and+Issuing+Certificates+for+Sandbox) | [Production Certificates](https://openbanking.atlassian.net/wiki/spaces/DZ/pages/80544075/OB+Root+and+Issuing+Certificates+for+Production)) to the client trust stores in `<IS_HOME>/repository/resources/security/client-truststore.p12` and `<APIM_HOME>/repository/resources/security/client-truststore.jks` using the following command:
+
+````
 ```
-./wso2server.sh
+keytool -import -alias <alias> -file <certificate_location> -keystore <truststore_location> -storepass wso2carbon
 ```
-2. Run the following command in `<APIM_HOME>/bin`:
-```
-./api-manager.sh
-```
+````
+
+
+## Start servers
+
+1. Run the following command in \<IS_HOME>/bin:
+    ```
+    ./wso2server.sh
+    ```
+
+2. Run the following command in \<APIM_HOME>/bin:
+    ```
+    ./api-manager.sh
+    ```
