@@ -83,7 +83,7 @@
   --site-background: none;
 }
 
-[data-theme='dark'] {
+html[data-theme='dark'] {
   --ifm-color-primary: #ff7300;
   --ifm-color-primary-dark: #e46700;
   --ifm-color-primary-darker: #cc5c00;
@@ -588,4 +588,129 @@ html[class~='docs-doc-id-home'] .main-wrapper {
 /* Sidebar icon for the Home entry (house). */
 .sidebar-section-icon-home {
   --sidebar-section-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z'/%3E%3C/svg%3E");
+}
+
+/* ===================== Light mode: legible orange text =================== */
+
+/*
+ * #ff7300 on white is only 2.9:1, too faint for text. In light mode every place that coloured text with the
+ * brand orange (active and hovered menu entries, the current breadcrumb, the table of contents) uses the
+ * darker text orange (--ifm-link-color, 4.9:1) instead. Buttons, icons and other non-text accents keep #ff7300.
+ */
+html[data-theme='light'] .navbar__link:hover,
+html[data-theme='light'] .navbar__link--active,
+html[data-theme='light'] .navbar__item.dropdown:hover > .navbar__link,
+html[data-theme='light'] .breadcrumbs__item--active .breadcrumbs__link,
+html[data-theme='light'] .table-of-contents__link--active,
+html[data-theme='light'] .table-of-contents__link:hover,
+html[data-theme='light'] .theme-doc-sidebar-container .menu__link:hover,
+html[data-theme='light'] .theme-doc-sidebar-container .menu__link--active,
+html[data-theme='light'] .theme-doc-sidebar-container .menu__list-item-collapsible:hover > .menu__link,
+html[data-theme='light'] .theme-doc-sidebar-container .menu__list-item-collapsible > .menu__link--active,
+html[data-theme='light']
+  .theme-doc-sidebar-container
+  .menu
+  > .menu__list
+  > .theme-doc-sidebar-item-category[class*='sidebar-section-icon-']
+  > .menu__list-item-collapsible
+  > .menu__link--active,
+html[data-theme='light']
+  .theme-doc-sidebar-container
+  .menu
+  > .menu__list
+  > .theme-doc-sidebar-item-link[class*='sidebar-section-icon-']
+  > .menu__link--active,
+html[data-theme='light']
+  .theme-doc-sidebar-container
+  .menu
+  > .menu__list
+  > .theme-doc-sidebar-item-category[class*='sidebar-section-icon-']
+  > .menu__list-item-collapsible:hover
+  > .menu__link,
+html[data-theme='light']
+  .theme-doc-sidebar-container
+  .menu
+  > .menu__list
+  > .theme-doc-sidebar-item-link[class*='sidebar-section-icon-']
+  > .menu__link:hover {
+  color: var(--ifm-link-color);
+}
+
+html[data-theme='light'] .ob-home__tile:hover {
+  border-color: var(--ifm-link-color);
+}
+
+/* Menu text that is not highlighted: a clearly dark grey in light mode. */
+html[data-theme='light'] .theme-doc-sidebar-container .menu__link:not(.menu__link--active) {
+  color: #2b2e34;
+}
+
+html[data-theme='light'] .navbar__title {
+  color: #1f2024;
+}
+
+/* =========================== Narrow screens ============================== */
+
+/*
+ * The wider Gilmer font made "Open Banking Accelerator" run into the search button on narrow phones. Let the
+ * brand shrink and end with an ellipsis, and keep the search button at its natural size.
+ */
+@media (max-width: 996px) {
+  .navbar {
+    padding: 0 1rem;
+  }
+
+  .navbar__inner {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+
+  .navbar__items {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .navbar__brand {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    margin-right: 0;
+  }
+
+  .navbar__title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .navbar__items--right {
+    flex: 0 0 auto;
+    min-width: auto;
+  }
+
+  /* Docusaurus positions the search container absolutely on small screens, which takes it out of the flex row,
+     so the brand ran underneath it. Put it back in the row. */
+  .navbar [class*='navbarSearchContainer'] {
+    position: static;
+  }
+}
+
+@media (max-width: 420px) {
+  .navbar__title {
+    font-size: 0.95rem;
+  }
+
+  .navbar__toggle {
+    margin-right: 0.5rem;
+  }
+}
+
+/* Links inside page content use the darker text orange in light mode as well. */
+html[data-theme='light'] .theme-doc-markdown a:not([class*='button']):not([class*='card']):not([class*='tile']) {
+  color: var(--ifm-link-color);
+}
+
+html[data-theme='light'] .theme-doc-markdown a:not([class*='button']):not([class*='card']):not([class*='tile']):hover {
+  color: var(--ifm-link-hover-color);
 }
