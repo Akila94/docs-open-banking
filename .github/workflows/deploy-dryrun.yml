@@ -85,3 +85,14 @@ jobs:
           folder: site/versions
           target-folder: en/versions
           clean: true
+
+      # Root files of the site (same step as the real workflow, with the fork target). `clean: false`
+      # is required: with the default and no target-folder this would delete everything else.
+      - name: Publish root files
+        uses: JamesIves/github-pages-deploy-action@fa24774553152dd7873cd16ebd8d959b010c5445 # v4.9.0
+        with:
+          branch: gh-pages
+          repository-name: Akila94/Akila94.github.io
+          token: ${{ secrets.PAGES_TARGET_TOKEN }}
+          folder: root-files
+          clean: false
